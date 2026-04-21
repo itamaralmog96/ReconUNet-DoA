@@ -1,0 +1,50 @@
+# --------------------------------------------------------------------------
+# Shared dataset config — ALL three paper baselines read from this file.
+# --------------------------------------------------------------------------
+# The (manifest_path, meta) pair is the single source of truth for every
+# training run so the comparison ReconUNet ↔ SubspaceNet ↔ SubViT is fair
+# by construction — they see byte-identical scene parameters.
+#
+# Usage:
+#     python scripts/generate_scenes.py --config configs/data/shared_manifest.yaml
+#     python scripts/train.py --config configs/train/reconunet.yaml
+#
+# Rendering happens on the fly inside the DataLoader (SceneRenderer), so the
+# on-disk size stays ~192 MB for the full 2M-sample paper corpus (vs. the
+# ≈ 60 GB legacy H5 dataset).
+
+manifest:
+  train_path: data/scenes/train.npy          # structured .npy + sibling .yaml
+  val_path:   data/scenes/val.npy
+  test_path:  data/scenes/test.npy
+  train_size: 2_000_000
+  val_size:     50_000
+  test_size:    50_000
+
+meta:
+  # ---- array geometry -----------------------------------------------------
+  M: 8                              # ULA elements
+  element_spacing_lambda: 0.5       # d/λ = 0.5 (broadside, no grating lobes)
+  array_type: ULA
+
+  # ---- signal model -------------------------------------------------------
+  T: 512                            # snapshots per sample
+  fs_Hz: 2.45e9                     # 2.45 GHz carrier (thesis §3.2)
+  speed_of_light: 2.998e8
+  tau: 8                            # lag-stack depth (SubspaceNet + ReconUNet)
+
+  # ---- sampling strategy -------------------------------------------------
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [-10.0, 20.0]
+
+  version: "1.0"
+  notes: "Paper-equivalent corpus for three-way comparison."
+
+# Error preset drawn by SceneManifest.random() — match the thesis's "mild"
+# calibration-error condition.  Swap to "harsh" for the robustness ablation.
+sampling:
+  array_errors: mild                # one of: none | mild | harsh
+  k_choices: [3]                    # K=3 sources (matches the paper)
+  min_separation_deg: 3.0           # reject draws with Δθ < 3° between sources
+  rng_seed: 20260420                # <-- changing this invalidates every checkpoint

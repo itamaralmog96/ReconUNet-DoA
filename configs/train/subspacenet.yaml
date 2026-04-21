@@ -1,0 +1,48 @@
+# --------------------------------------------------------------------------
+# SubspaceNet (Shmuel et al., 2023) — paper baseline #1
+# --------------------------------------------------------------------------
+# Routed through reconunet.models.third_party.subspacenet_adapter so we can
+# reuse the same training loop.  The upstream repo is pinned as a git
+# submodule under third_party/subspacenet/ — do NOT modify its source.
+
+model:
+  name: subspacenet
+  adapter_class: reconunet.models.third_party.subspacenet_adapter.SubspaceNetAdapter
+  init:
+    M: 3                            # SubspaceNet's M = #sources, not #elements
+    tau: 8                          # must match shared_manifest.meta.tau
+    diff_method: root_music         # "root_music" | "esprit"
+
+collate: subspacenet
+
+data:
+  config: configs/data/shared_manifest.yaml
+  batch_size: 256
+  num_workers: 8
+  pin_memory: true
+
+optim:
+  optimizer: adam
+  lr: 1.0e-3                        # upstream default
+  weight_decay: 1.0e-9
+  grad_clip_norm: 1.0
+  scheduler:
+    name: step
+    step_size: 50
+    gamma: 0.5
+
+loss:
+  # SubspaceNet's original paper uses RMSPE between Root-MUSIC output and
+  # ground-truth angles — nothing else.  Weight of 1.0 is canonical.
+  rmspel_weight: 1.0
+
+train:
+  epochs: 80
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/subspacenet/checkpoints/
+  tensorboard_dir: experiments/runs/subspacenet/tb/
+  early_stopping_patience: 15
+  amp: true
+
+eval:
+  config: configs/eval/evaluation_config.yaml

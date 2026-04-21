@@ -1,0 +1,72 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+wheels/
+pip-wheel-metadata/
+.installed.cfg
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+pyEnv/
+
+# ---- IDEs / editors ----
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- Testing / coverage ----
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# ---- TensorBoard / W&B ----
+runs/
+tensorboard/
+wandb/
+
+# ---- Experiment artifacts (large, regenerable) ----
+# Everything under experiments/runs/ is training output and must never enter
+# git.  Keep experiments/paper_figures/ because final plots are not
+# regenerable without re-running the whole pipeline.
+experiments/runs/
+experiments/legacy_results/
+data/rendered/
+data/cache/
+
+# ---- Generated scenes (regenerate on every machine via generate_scenes) --
+data/scenes/
+
+# ---- Large test fixtures (legacy HDF5 dumps, regenerable) ----
+tests/fixtures/
+
+# ---- Notebook large outputs / archives ----
+notebooks/archive/
+notebooks/exploration/*.h5
+notebooks/exploration/*.npy
+
+# ---- Model checkpoints anywhere ----
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# ---- OS ----
+Thumbs.db
+desktop.ini

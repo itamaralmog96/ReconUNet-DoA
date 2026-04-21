@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reconunet"
+version = "0.1.0"
+description = "Deep eigen-covariance reconstruction for robust DOA estimation (MSc thesis project, Itamar Almog & Prof. Anthony J. Weiss)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Itamar Almog", email = "Itamara@netlinetech.com" },
+]
+keywords = [
+    "direction-of-arrival",
+    "doa",
+    "signal-processing",
+    "array-processing",
+    "deep-learning",
+    "covariance",
+    "eigenvalue-decomposition",
+    "music",
+    "root-music",
+    "subspacenet",
+    "reconunet",
+    "evd-unet",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+dependencies = [
+    "torch>=1.8.0",
+    "torchvision>=0.9.0",
+    "torchaudio>=0.8.0",
+    "numpy>=1.21.0",
+    "scipy>=1.7.0",
+    "h5py>=3.1.0",
+    "PyYAML>=5.4.0",
+    "matplotlib>=3.3.0",
+    "matplotlib-inline",
+    "tqdm>=4.60.0",
+    "tensorboard>=2.4.0",
+    "tensorboard-data-server>=0.6.0",
+    "tensorboardX>=2.2.0",
+    # Used for the compact SceneManifest (parquet) + tabular eval outputs.
+    "pyarrow>=10.0.0",
+    "pandas>=1.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "black>=21.0.0",
+    "flake8>=3.9.0",
+]
+notebooks = [
+    "jupyter>=1.0.0",
+    "ipython>=7.0.0",
+]
+# Installs the git-submodule-backed baselines as importable modules.
+# After `git submodule update --init`, the adapters in
+# reconunet.models.third_party will pick up these trees.
+baselines = []
+
+[project.scripts]
+# Thin CLI wrappers so users can run the paper's pipeline without python -m.
+reconunet-generate = "reconunet.cli.generate_scenes:main"
+reconunet-train    = "reconunet.cli.train:main"
+reconunet-evaluate = "reconunet.cli.evaluate:main"
+
+[project.urls]
+Paper = "https://arxiv.org/abs/placeholder-thesis-doa-01"
+Repository = "https://github.com/placeholder/ReconUNet"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["reconunet*"]
+exclude = ["tests*", "notebooks*", "experiments*", "scripts*", "third_party*"]
+
+[tool.setuptools.package-data]
+reconunet = ["py.typed", "*.yaml", "*.yml", "*.json"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]

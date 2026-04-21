@@ -1,0 +1,46 @@
+# --------------------------------------------------------------------------
+# Tiny evaluation sweep — paired with configs/data/tiny.yaml.
+# --------------------------------------------------------------------------
+# Runs the unified harness over the 1k-sample test split at 7 SNR points,
+# for all three models + their CRLB floor.  ~1 min end-to-end on RTX 2000.
+
+manifest: data/scenes/test.npy
+output_dir: experiments/runs/eval_tiny/
+batch_size: 128
+seed: 20260420
+
+snr_sweep_db: [-10, -5, 0, 5, 10, 15, 20]
+
+models:
+  - name: reconunet
+    class_path: reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet
+    init:
+      M: 8
+      tau: 8
+      eigval_hidden: 64
+      eigvec_hidden: 64
+      dropout: 0.1
+    checkpoint: experiments/runs/reconunet/checkpoints/best.pt
+    collate: reconunet
+
+  - name: subspacenet
+    adapter_class: reconunet.models.third_party.subspacenet_adapter.SubspaceNetAdapter
+    init:
+      M: 3
+      tau: 8
+      diff_method: root_music
+    checkpoint: experiments/runs/subspacenet/checkpoints/best.pt
+    collate: subspacenet
+
+  - name: subvit
+    adapter_class: reconunet.models.third_party.subvit_adapter.SubViTAdapter
+    init:
+      M: 8
+      K_max: 3
+      grid_size: 121
+      angle_range_deg: [-60.0, 60.0]
+      embed_dim: 256
+      depth: 6
+      num_heads: 8
+    checkpoint: experiments/runs/subvit/checkpoints/best.pt
+    collate: subvit

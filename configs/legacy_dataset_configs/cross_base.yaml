@@ -1,0 +1,37 @@
+# Test configuration for cross array dataset generation
+dataset_name: "cross_test_dataset"
+array_type: "cross"
+num_elements: 9  # For example, 9 elements for cross array (1 center + 2 on each of 4 arms)
+
+# Parameter ranges  
+angles_deg:
+  start: 0
+  stop: 360
+  step: 1
+
+snr_db: [-10, 25, 1]
+num_snapshots: [512, 1024]
+num_sources: [[1, 0], [1, 1], [1, 2]]
+sir_db: [-10, 0, 10]
+num_multipath: [0, 1, 2]
+array_imperfections: [true, false]
+
+# Generation settings
+examples_per_combination: 50
+# ENABLE RANDOM SAMPLING: Set to true to enable random parameter sampling
+random_sampling_mode: true
+
+# RANDOM SAMPLE PARAMETERS: List of parameters to sample randomly
+# Available options: ["angles_deg", "snr_db", "sir_db", "num_snapshots", "num_sources", "num_multipath", "array_imperfections"]
+# Parameters NOT listed here will be systematically swept
+random_sample_params: ["sir_db", "num_snapshots", "num_sources", "num_multipath", "array_imperfections"]
+
+# Data components to save
+save_received_signal: true
+save_covariance_matrix: true
+save_steering_vectors: true
+save_array_metadata: true
+
+# Frequencies
+carrier_freq: 2.45e9
+sampling_freq: 1e6 

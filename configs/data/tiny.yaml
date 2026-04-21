@@ -1,0 +1,43 @@
+# --------------------------------------------------------------------------
+# Tiny dry-run config — NOT for paper results.
+# --------------------------------------------------------------------------
+# Purpose: sanity-check the full pipeline on a new machine in ~10 minutes
+# (scene generation: ~2 s, training: ~5-15 min/model on RTX 2000 Ada).
+#
+# Usage (on the GPU box):
+#     reconunet-generate --config configs/data/tiny.yaml
+#     reconunet-train    --config configs/train/reconunet.yaml    --epochs 5
+#     reconunet-train    --config configs/train/subspacenet.yaml  --epochs 5
+#     reconunet-train    --config configs/train/subvit.yaml       --epochs 5
+#     reconunet-evaluate --config configs/eval/tiny.yaml
+#
+# If all three models produce finite val-RMSPE after 5 epochs, promote to
+# configs/data/shared_manifest.yaml for the full 2M-sample run.
+
+manifest:
+  train_path: data/scenes/train.npy
+  val_path:   data/scenes/val.npy
+  test_path:  data/scenes/test.npy
+  train_size: 10_000
+  val_size:    1_000
+  test_size:   1_000
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [-10.0, 20.0]
+  version: "0.1-tiny"
+  notes: "Tiny dry-run corpus — not paper-grade."
+
+sampling:
+  array_errors: mild
+  k_choices: [3]
+  min_separation_deg: 3.0
+  rng_seed: 20260420

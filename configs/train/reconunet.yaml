@@ -1,0 +1,61 @@
+# --------------------------------------------------------------------------
+# ReconUNet (EVDUNet) — the paper's primary model
+# --------------------------------------------------------------------------
+# Expected:
+#     CovReconstructionUNet inputs  :  [B, τ, 2M, M] lag-stack (real + imag)
+#     Outputs                       :  (eigvals, eigvecs, K̂_reconstructed)
+#     Downstream angle extraction   :  Root-MUSIC on K̂
+#
+# Everything under `data` points at the shared manifest — do NOT override
+# unless you understand that retraining on different scenes voids the
+# fair-comparison guarantee.
+
+model:
+  name: reconunet
+  class_path: reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet
+  init:
+    M: 8
+    tau: 8
+    eigval_hidden: 64
+    eigvec_hidden: 64
+    dropout: 0.1
+
+collate: reconunet                  # resolved by reconunet.data.scene_dataset.get_collate
+
+data:
+  config: configs/data/shared_manifest.yaml
+  batch_size: 256
+  num_workers: 8
+  pin_memory: true
+
+optim:
+  optimizer: adam
+  lr: 1.0e-3
+  weight_decay: 1.0e-6
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.5
+    patience: 4
+    min_lr: 1.0e-6
+
+loss:
+  # ReconUNet trains jointly on (eigval MSE) + (eigvec subspace distance)
+  # + (Frobenius reconstruction).  Weights lifted from thesis §4.3.
+  eigval_weight:          1.0
+  eigvec_weight:          1.0
+  reconstruction_weight:  0.1
+  # Final angle-RMSE supervision via RMSPELoss on Root-MUSIC angles.
+  rmspel_weight:          0.5
+
+train:
+  epochs: 80
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/reconunet/checkpoints/
+  tensorboard_dir: experiments/runs/reconunet/tb/
+  early_stopping_patience: 15
+  amp: true                        # mixed-precision on CUDA
+
+eval:
+  config: configs/eval/evaluation_config.yaml

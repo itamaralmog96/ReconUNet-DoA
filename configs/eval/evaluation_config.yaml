@@ -1,0 +1,38 @@
+# Comprehensive DOA Evaluation Configuration
+
+# Array Configuration
+array_type: "linear"        # Array geometry: linear, triangular, circular, cross
+num_elements: 8             # Number of array elements
+carrier_freq: 2.45e9        # Carrier frequency in Hz
+element_spacing: 0.5        # Element spacing (in wavelengths)
+array_imperfections: false  # Enable array imperfections (gain/phase errors)
+mutual_coupling: false      # Enable mutual coupling effects
+position_error_std: 0.0     # Position error standard deviation
+
+# Signal Configuration
+sampling_freq: 1.0e6        # Sampling frequency in Hz
+num_snapshots: 512          # Number of snapshots per sample
+bandwidth: 1.0e6            # Signal bandwidth in Hz
+
+# Evaluation Parameters
+snr_range: [-20, -10, 0, 10, 20]    # SNR values to evaluate (dB)
+num_sources_range: [1, 2, 3]        # Number of sources to evaluate
+multipath_range: [0, 1, 2]          # Number of multipath components
+min_angle_separation: 10.0          # Minimum angular separation between sources (degrees)
+angle_range: [30, 150]              # Valid angle range for DOA generation (degrees)
+
+# Dataset Generation
+num_samples: 300                     # Total number of samples to generate
+max_samples_per_condition: 20       # Maximum samples per SNR/sources/multipath combination
+
+# UNet Configuration
+unet_tau: 8                         # Number of autocorrelation lags for UNet
+unet_model_path: null               # Path to trained UNet model (null for random initialization)
+
+# Output Configuration
+save_detailed_results: true         # Save detailed per-sample results
+save_plots: true                    # Generate and save performance plots
+output_format: ["json", "csv"]      # Output formats: json, csv, matlab
+
+
+

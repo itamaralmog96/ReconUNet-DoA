@@ -1,0 +1,48 @@
+# Example configuration for ULA (linear array) dataset generation
+dataset_name: "ula_dataset_90_all_scenarios"
+array_type: "linear"  # 'linear' is the correct term for ULA in this implementation
+num_elements: 8
+
+# Parameter ranges  
+angles_deg:
+  start: 90
+  stop: 91
+  step: 1
+
+snr_db:
+  start: -10
+  stop: 16
+  step: 1
+
+num_snapshots: [1024]
+
+num_sources: [[1, 0], [1, 1], [1, 2]]
+
+sir_db:
+  start: 0
+  stop: 1
+  step: 1
+
+num_multipath: [0, 1, 2]
+
+array_imperfections: [true, false]
+
+# Generation settings
+examples_per_combination: 1000
+# ENABLE RANDOM SAMPLING: Set to true to enable random parameter sampling
+random_sampling_mode: false
+
+# RANDOM SAMPLE PARAMETERS: List of parameters to sample randomly
+# Available options: ["angles_deg", "snr_db", "sir_db", "num_snapshots", "num_sources", "num_multipath", "array_imperfections"]
+# Parameters NOT listed here will be systematically swept
+# random_sample_params: ["sir_db", "num_snapshots", "num_sources", "num_multipath", "array_imperfections"]
+
+# Data components to save
+save_received_signal: true
+save_covariance_matrix: false
+save_steering_vectors: false
+save_array_metadata: true
+
+# Frequencies
+carrier_freq: 2.45e9
+sampling_freq: 1e6 

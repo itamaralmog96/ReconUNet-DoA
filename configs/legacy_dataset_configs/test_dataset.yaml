@@ -1,0 +1,92 @@
+# Test Dataset Configuration  
+# Quick testing with random sampling - generates ~10,000-20,000 samples
+# Estimated generation time: 5-10 minutes
+
+dataset_name: "test_dataset"
+
+# === PARAMETER RANGES ===
+
+# Angles: Every 1 degree (360 angles) - high resolution
+angles_deg:
+  start: 0
+  stop: 360
+  step: 1
+
+# SNR: 9 levels covering wide range
+snr_db:
+  start: -20
+  stop: 21
+  step: 10
+
+# Snapshots: 2 common sizes
+num_snapshots: [512, 1024]
+
+# Source configurations: Basic scenarios
+num_sources: 
+  - [1, 0]  # Single source
+  - [1, 1]  # Main + 1 interference
+  - [1, 2]  # Main + 2 interference  
+
+# SIR: 5 levels
+sir_db:
+  start: -20
+  stop: 21
+  step: 10
+
+# Multipath: Full range
+# Constraint: main + interference + multipath ≤ 3
+num_multipath: [0, 1, 2]
+
+# Array types: Both perfect and imperfect
+array_imperfections: [true, false]
+
+# ===================================================================
+# RANDOM SAMPLING CONTROL - Control which parameters are random vs systematic
+# ===================================================================
+
+# ENABLE RANDOM SAMPLING: Set to true to enable random parameter sampling
+random_sampling_mode: true
+
+# RANDOM SAMPLE PARAMETERS: List of parameters to sample randomly
+# Available options: ["angles_deg", "snr_db", "sir_db", "num_snapshots", "num_sources", "num_multipath", "array_imperfections"]
+# Parameters NOT listed here will be systematically swept
+random_sample_params: ["sir_db", "num_snapshots", "num_sources", "num_multipath", "array_imperfections"]
+
+# === GENERATION CONTROL ===
+
+# Small number of examples for quick testing
+examples_per_combination: 1
+
+# === ARRAY CONFIGURATION ===
+
+carrier_freq: 2.45e9
+sampling_freq: 1.0e6
+
+# === OUTPUT CONTROL ===
+
+save_received_signal: true
+save_covariance_matrix: true
+save_steering_vectors: true
+save_array_metadata: true
+
+# === EXPECTED RESULTS ===
+# 
+# Valid combinations after multipath constraint:
+# - [1,0] + 0,1,2 multipath: 3 combinations (total signals: 1,2,3)
+# - [1,1] + 0,1 multipath: 2 combinations (total signals: 2,3)
+# - [1,2] + 0 multipath: 1 combination (total signals: 3)
+# Total: 6 valid source+multipath combinations
+#
+# With random sampling enabled:
+# - angles_deg: 360 values (systematic sweep)
+# - snr_db: 9 values (systematic sweep)
+# - sir_db: 5 values (randomly sampled)
+# - num_snapshots: 2 values (randomly sampled)
+# - num_sources: 3 values (randomly sampled)
+# - num_multipath: 3 values (randomly sampled)
+# - array_imperfections: 2 values (randomly sampled)
+#
+# Systematic combinations: 360 angles × 9 SNR = 3,240 combinations
+# With 10 examples each: 32,400 samples
+# Estimated size: ~5-10 GB
+# Estimated time: 5-10 minutes

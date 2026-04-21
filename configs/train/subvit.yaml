@@ -1,0 +1,58 @@
+# --------------------------------------------------------------------------
+# DOA-ViT / SubViT (Zhou et al.'s DOA_est_Master) — paper baseline #2
+# --------------------------------------------------------------------------
+# Routed through reconunet.models.third_party.subvit_adapter.  Upstream is
+# pinned at third_party/doa_est_master/ — do NOT modify its source.
+#
+# The upstream model is a Vision Transformer over the spatial covariance
+# matrix (rendered as a [2, M, M] real/imag image).  In sp_mode=True it emits
+# a spatial pseudo-spectrum over a uniform angle grid; we peak-pick top-K to
+# recover DoAs.
+
+model:
+  name: subvit
+  adapter_class: reconunet.models.third_party.subvit_adapter.SubViTAdapter
+  init:
+    M: 8
+    K_max: 3
+    grid_size: 121                  # 1° resolution over the angle range
+    angle_range_deg: [-60.0, 60.0]  # must fit inside shared_manifest.angle_range_deg
+    embed_dim: 256
+    depth: 6
+    num_heads: 8
+
+collate: subvit
+
+data:
+  config: configs/data/shared_manifest.yaml
+  batch_size: 128                   # ViT memory footprint is larger than CNNs
+  num_workers: 8
+  pin_memory: true
+
+optim:
+  optimizer: adamw
+  lr: 3.0e-4
+  weight_decay: 5.0e-2
+  grad_clip_norm: 1.0
+  scheduler:
+    name: cosine
+    T_max: 80                       # one cycle over the 80-epoch budget
+    eta_min: 1.0e-6
+
+loss:
+  # Multi-label BCE over the angle grid (one-hot-per-source) — we leave a
+  # knob to add a peak-sharpening regularizer if the spectrum flattens.
+  bce_weight:         1.0
+  peak_sharpness:     0.1
+  topk_rmspel_weight: 0.3           # angle-level RMSPE on the extracted peaks
+
+train:
+  epochs: 80
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/subvit/checkpoints/
+  tensorboard_dir: experiments/runs/subvit/tb/
+  early_stopping_patience: 15
+  amp: true
+
+eval:
+  config: configs/eval/evaluation_config.yaml
