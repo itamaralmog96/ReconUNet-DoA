@@ -1,6 +1,6 @@
 [submodule "third_party/subspacenet"]
 	path = third_party/subspacenet
-	url = https://github.com/ShlezingerLab/SubspaceNet.git
+	url = git@github.com:Itamara_Netline/SubspaceNet.git
 [submodule "third_party/doa_est_master"]
 	path = third_party/doa_est_master
 	url = https://github.com/zzb-nice/DOA_est_Master.git
