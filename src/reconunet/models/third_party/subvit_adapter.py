@@ -30,6 +30,7 @@ Input/output contract
 from __future__ import annotations
 
 import sys
+import types
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -53,7 +54,23 @@ def _ensure_on_path() -> None:
         )
     path_str = str(root)
     if path_str not in sys.path:
-        sys.path.append(path_str)
+        sys.path.insert(0, path_str)
+    # The upstream uses an unqualified top-level ``models`` package, but
+    # ``reconunet.models`` (a regular package) is also reachable as top-level
+    # ``models`` once any classic module appends ``src/reconunet`` to sys.path
+    # — and a regular package always wins over the upstream's namespace
+    # package.  Pre-register a synthetic ``models`` module pointing at the
+    # upstream directory so subsequent ``from models.x import …`` imports
+    # resolve here.
+    upstream_models = root / "models"
+    existing = sys.modules.get("models")
+    if existing is None or not any(
+        Path(p).resolve() == upstream_models.resolve()
+        for p in getattr(existing, "__path__", [])
+    ):
+        mod = types.ModuleType("models")
+        mod.__path__ = [str(upstream_models)]
+        sys.modules["models"] = mod
 
 
 class SubViTAdapter(BaselineAdapter):
@@ -99,9 +116,10 @@ class SubViTAdapter(BaselineAdapter):
 
         # Grid_Based_network kwargs drive sp_mode=True:
         grid_kwargs = {
-            "grid_size": grid_size,
-            "grid_start": float(angle_range_deg[0]),
-            "grid_end": float(angle_range_deg[1]),
+            "start_angle": float(angle_range_deg[0]),
+            "end_angle": float(angle_range_deg[1]),
+            "step": (float(angle_range_deg[1]) - float(angle_range_deg[0]))
+                    / max(1, grid_size - 1),
         }
 
         model = VisionTransformer(
@@ -150,7 +168,10 @@ class SubViTAdapter(BaselineAdapter):
         meta: Optional[Dict[str, Any]] = None,
     ) -> BaselineOutput:
         logits = model(prepped, logits=False)   # [B, grid_size] spatial spectrum
-        K_max = int((meta or {}).get("K_max", self.K_max))
+        # Use the adapter's configured K_max — the manifest's ``meta.K_max``
+        # is the dataset-wide source-count cap (often 8) and would over-
+        # predict for typical k=3 scenes.
+        K_max = int(self.K_max)
         angles_pred = self._peak_pick(logits, model, K=K_max)
 
         loss = None

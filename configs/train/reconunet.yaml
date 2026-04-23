@@ -16,15 +16,14 @@ model:
   init:
     M: 8
     tau: 8
-    eigval_hidden: 64
-    eigvec_hidden: 64
-    dropout: 0.1
+    activation_type: anti_rectifier
+    use_dropout: true
 
 collate: reconunet                  # resolved by reconunet.data.scene_dataset.get_collate
 
 data:
   config: configs/data/shared_manifest.yaml
-  batch_size: 256
+  batch_size: 4096
   num_workers: 8
   pin_memory: true
 
@@ -46,8 +45,6 @@ loss:
   eigval_weight:          1.0
   eigvec_weight:          1.0
   reconstruction_weight:  0.1
-  # Final angle-RMSE supervision via RMSPELoss on Root-MUSIC angles.
-  rmspel_weight:          0.5
 
 train:
   epochs: 80

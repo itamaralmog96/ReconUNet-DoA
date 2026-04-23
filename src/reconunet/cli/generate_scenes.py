@@ -140,14 +140,13 @@ def generate(cfg: dict, *, root: Path, overwrite: bool = False) -> dict[str, Pat
         LOG.info("Generating %s split: n=%d → %s  (seed=%d)",
                  split, n, out_path, seeds[split])
         manifest = SceneManifest.random(
-            n=n,
             meta=replace(meta_base, notes=f"{meta_base.notes} [split={split}]"),
+            size=n,
+            rng=np.random.default_rng(seeds[split]),
             k_choices=k_choices,
             min_separation_deg=min_sep,
             array_errors=array_errors,
-            array_type=meta_base.array_type,
-            modulation=modulation,
-            rng_seed=seeds[split],
+            progress_desc=f"{split:>5} scenes",
         )
         manifest.save(str(out_path))
         LOG.info("  wrote %s  (%.1f MB + sidecar)",

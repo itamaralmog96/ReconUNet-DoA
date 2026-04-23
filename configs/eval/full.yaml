@@ -5,7 +5,7 @@
 # for all three models + their CRLB floor.  ~1 min end-to-end on RTX 2000.
 
 manifest: data/scenes/test.npy
-output_dir: experiments/runs/eval_tiny/
+output_dir: experiments/runs/eval_full/
 batch_size: 128
 seed: 20260420
 
@@ -17,9 +17,8 @@ models:
     init:
       M: 8
       tau: 8
-      eigval_hidden: 64
-      eigvec_hidden: 64
-      dropout: 0.1
+      activation_type: anti_rectifier
+      use_dropout: true
     checkpoint: experiments/runs/reconunet/checkpoints/best.pt
     collate: reconunet
 

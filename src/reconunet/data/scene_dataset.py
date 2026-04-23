@@ -118,9 +118,11 @@ class ReconUNetCollate(_BaseCollate):
     def __call__(self, batch: Sequence[CanonicalSample]) -> Dict[str, torch.Tensor]:
         snaps = torch.stack([b.snapshots for b in batch], dim=0)   # [B, M, T] complex
         stack = lag_stack(snaps, tau=self.meta.tau)                # [B, τ, 2M, M] float
+        cov = torch.stack([b.covariance for b in batch], dim=0)    # [B, M, M] complex
         angles, k, snr, ids = self._stack_common(batch)
         return {
             "input":       stack,
+            "covariance":  cov,
             "angles_rad":  angles,
             "n_sources":   k,
             "snr_db":      snr,

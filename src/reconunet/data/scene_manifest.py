@@ -60,6 +60,7 @@ from typing import Any, Dict, Iterable, Iterator, Optional, Sequence, Tuple, Uni
 
 import numpy as np
 import yaml
+from tqdm.auto import tqdm
 
 K_MAX = 8              # maximum sources per scene (pad with NaN)
 ANGLE_FILL = np.float32("nan")
@@ -177,10 +178,13 @@ class ManifestMeta:
     notes: str = ""
 
     def to_yaml(self, path: PathLike) -> None:
+        array_type = self.array_type
+        if hasattr(array_type, "name"):
+            array_type = array_type.name
         payload: Dict[str, Any] = {
             "M": self.M,
             "element_spacing_lambda": self.element_spacing_lambda,
-            "array_type": self.array_type,
+            "array_type": array_type,
             "T": self.T,
             "fs_Hz": self.fs_Hz,
             "speed_of_light": self.speed_of_light,
@@ -335,6 +339,7 @@ class SceneManifest:
         k_choices: Sequence[int] = (1, 2, 3),
         min_separation_deg: float = 3.0,
         array_errors: str = "mild",   # "none" | "mild" | "harsh"
+        progress_desc: Optional[str] = None,
     ) -> "SceneManifest":
         """Factory that fills a manifest with uniformly-random, valid scenes.
 
@@ -368,7 +373,10 @@ class SceneManifest:
         }
         gain_err, phase_err, coupling, pos_err = err_presets[array_errors]
 
-        for i in range(size):
+        iterator = range(size)
+        if progress_desc is not None:
+            iterator = tqdm(iterator, desc=progress_desc, unit="scene", leave=True)
+        for i in iterator:
             k = int(rng.choice(k_choices))
             for _attempt in range(32):
                 angles = np.sort(rng.uniform(lo, hi, size=k).astype(np.float32))

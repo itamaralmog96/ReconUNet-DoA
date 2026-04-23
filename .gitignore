@@ -70,3 +70,8 @@ notebooks/exploration/*.npy
 # ---- OS ----
 Thumbs.db
 desktop.ini
+
+# ---- Python virtual environments ----
+DOA_env/
+.venv/
+venv/

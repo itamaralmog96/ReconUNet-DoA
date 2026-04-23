@@ -17,7 +17,7 @@ collate: subspacenet
 
 data:
   config: configs/data/shared_manifest.yaml
-  batch_size: 256
+  batch_size: 4096
   num_workers: 8
   pin_memory: true
 

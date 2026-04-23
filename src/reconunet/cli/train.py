@@ -39,6 +39,7 @@ import torch
 import torch.nn as nn
 import yaml
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 from reconunet.data.scene_dataset import SceneDataset, get_collate
 from reconunet.data.scene_manifest import ManifestMeta, SceneManifest
@@ -143,22 +144,53 @@ class _AdapterModule(nn.Module):
     the user configured a native model or a third-party adapter.
     """
 
-    def __init__(self, adapter: BaselineAdapter, meta: ManifestMeta):
+    def __init__(self, adapter: BaselineAdapter, meta: ManifestMeta,
+                 build_cfg: dict[str, Any] | None = None):
         super().__init__()
-        adapter.build_model()
+        self._inner = adapter.build_model(dict(build_cfg or {}))
         self.adapter = adapter
         self.meta = meta
-        # Expose the underlying nn.Module so parameters() sees it.
-        self._inner = adapter.model
+        # Build a plain dict view of meta for adapter consumers.
+        self._meta_dict = dataclasses.asdict(meta) if dataclasses.is_dataclass(meta) else dict(meta)
 
     def parameters(self, recurse: bool = True):  # type: ignore[override]
         return self._inner.parameters(recurse=recurse)
 
     def forward(self, batch: dict[str, Any]) -> BaselineOutput:
-        # The adapter already handles input preparation from the canonical
-        # batch.  We pass the batch dict straight through.
-        x = self.adapter.prepare_input(batch)
-        out = self.adapter.forward(x, batch=batch, meta=self.meta)
+        # The collate has already produced the model-specific input tensor
+        # under batch["input"].  Pass it through to the adapter.
+        prepped = batch["input"]
+        targets = batch.get("angles_rad")
+        out = self.adapter.forward(self._inner, prepped, targets=targets,
+                                   meta=self._meta_dict)
+        return out
+
+
+class _NativeModule(nn.Module):
+    """Thin wrapper that calls a native model on ``batch["input"]`` and
+    normalises its tuple output into a dict keyed for the loss config.
+
+    Currently understands the EVDUNet-family return signature
+    ``(eigvals, eigvecs, K_recon)``.  Other native models can be added by
+    extending the dict-construction below.
+    """
+
+    def __init__(self, model: nn.Module):
+        super().__init__()
+        self._inner = model
+
+    def parameters(self, recurse: bool = True):  # type: ignore[override]
+        return self._inner.parameters(recurse=recurse)
+
+    def forward(self, batch: dict[str, Any]) -> dict[str, Any]:
+        out = self._inner(batch["input"])
+        if isinstance(out, tuple) and len(out) == 3:
+            eigvals, eigvecs, K_recon = out
+            return {
+                "eigvals": eigvals,
+                "eigvecs": eigvecs,
+                "K_recon": K_recon,
+            }
         return out
 
 
@@ -171,12 +203,12 @@ def _build_model(model_cfg: dict, meta: ManifestMeta) -> nn.Module:
         model = cls(**init)
         LOG.info("Built native model %s with %d params",
                  model_cfg["class_path"], sum(p.numel() for p in model.parameters()))
-        return model
+        return _NativeModule(model)
     if "adapter_class" in model_cfg:
         cls = _import_dotted(model_cfg["adapter_class"])
         init = dict(model_cfg.get("init", {}))
         adapter = cls(**init)
-        module = _AdapterModule(adapter, meta)
+        module = _AdapterModule(adapter, meta, build_cfg=init)
         LOG.info("Built adapter %s with %d params",
                  model_cfg["adapter_class"],
                  sum(p.numel() for p in module.parameters()))
@@ -238,6 +270,36 @@ def _compute_loss_adapter(
     if not isinstance(angles_true, torch.Tensor):
         angles_true = torch.as_tensor(angles_true)
     angles_true = angles_true.to(out.angles_pred.device)
+
+    # If the adapter exposes a differentiable spatial spectrum (e.g. SubViT),
+    # use multi-hot BCE against the ground-truth angle bins — angles_pred
+    # itself comes from a non-differentiable topk and cannot drive grads.
+    spectrum = (out.extras or {}).get("spatial_spectrum")
+    if spectrum is not None and spectrum.requires_grad:
+        bce_w = float(loss_cfg.get("bce_weight", 1.0))
+        grid = spectrum.shape[-1]
+        # Reuse the angle range from the source manifest if encoded into the
+        # batch metadata; otherwise default to (-60°, 60°).
+        g0_deg, g1_deg = -60.0, 60.0
+        targets = torch.zeros_like(spectrum)
+        a_deg = torch.rad2deg(angles_true)
+        valid = ~torch.isnan(a_deg)
+        idx = ((a_deg - g0_deg) / (g1_deg - g0_deg) * (grid - 1)).round().long()
+        idx = idx.clamp(0, grid - 1)
+        rows = torch.arange(spectrum.shape[0], device=spectrum.device)
+        for k in range(a_deg.shape[1]):
+            mask = valid[:, k]
+            if mask.any():
+                targets[rows[mask], idx[mask, k]] = 1.0
+        loss = bce_w * torch.nn.functional.binary_cross_entropy_with_logits(
+            spectrum, targets
+        )
+        return loss, {"loss": float(loss.detach())}
+
+    # ``angles_true`` is padded to K_MAX with NaN; slice to the prediction
+    # width (assumes uniform k per batch, which holds for k_choices=[K]).
+    K = out.angles_pred.shape[-1]
+    angles_true = angles_true[..., :K]
     # Periodic RMSPE in radians — direct drop-in for training loss.
     diff = out.angles_pred.sort(dim=-1).values - angles_true.sort(dim=-1).values
     wrapped = (diff + math.pi / 2) % math.pi - math.pi / 2
@@ -269,6 +331,33 @@ def _compute_loss_native(
 
     metrics: dict[str, float] = {}
     total: torch.Tensor | None = None
+
+    # ---- EVDUNet-style outputs: derive standard loss terms on demand. ----
+    K_true = batch.get("covariance")
+    if "K_recon" in out and K_true is not None:
+        K_recon = out["K_recon"]
+        K_true_dev = K_true.to(K_recon.device)
+        diff = K_recon - K_true_dev
+        # Frobenius reconstruction loss, normalised per-sample.
+        recon = (diff.abs() ** 2).sum(dim=(-1, -2)).mean()
+        out = {**out, "reconstruction": recon}
+        if "eigvals" in out and "eigvecs" in out:
+            # Synthesise eigval / eigvec supervision from the EVD of K_true so
+            # the configured ``eigval_weight`` / ``eigvec_weight`` are usable
+            # without an explicit ground-truth EVD field in the manifest.
+            with torch.no_grad():
+                w_true, V_true = torch.linalg.eigh(K_true_dev)
+                w_true = torch.flip(w_true, dims=[-1])         # descending
+                V_true = torch.flip(V_true, dims=[-1])
+            eigvals_pred = out["eigvals"]
+            eigvecs_pred = out["eigvecs"]
+            out = {
+                **out,
+                "eigval": torch.nn.functional.mse_loss(eigvals_pred, w_true.to(eigvals_pred.dtype)),
+                # Subspace distance: 1 - mean |<v_pred, v_true>|^2.
+                "eigvec": (1.0 - (eigvecs_pred.conj() * V_true).sum(dim=-2).abs().pow(2).mean()).real,
+            }
+
     for key, weight in loss_cfg.items():
         term_key = key.removesuffix("_weight")
         if term_key in out:
@@ -305,6 +394,20 @@ def _extract_pred_angles(out: Any, batch: dict[str, Any]) -> torch.Tensor | None
         return out.angles_pred
     if isinstance(out, dict) and "angles_pred" in out:
         return out["angles_pred"]
+    # Native EVDUNet-style output: derive angles from reconstructed covariance
+    # via Root-MUSIC so val_rmspe reports a real number.  Requires uniform K
+    # across the batch (holds for k_choices=[K]); root_music returns degrees
+    # in [0°, 180°] (acos-of-sin convention), so we subtract 90° and convert
+    # to radians to match the BaselineOutput.angles_pred convention.
+    if isinstance(out, dict) and "K_recon" in out:
+        from reconunet.models.deep_learning.subspace_models import root_music
+        K_recon = out["K_recon"]
+        angles_true = batch["angles_rad"]
+        K = int((~torch.isnan(angles_true[0])).sum().item())
+        if K == 0:
+            return None
+        angles_deg, _, _ = root_music(K_recon, K, K_recon.shape[0])
+        return torch.deg2rad(angles_deg - 90.0)
     return None
 
 
@@ -318,12 +421,20 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
     train_loader, val_loader, meta = _build_loaders(cfg, project_root)
     model = _build_model(cfg["model"], meta).to(device)
     is_adapter = isinstance(model, _AdapterModule)
+    # Native EVDUNet also uses complex tensors; AMP must be off for it.
+    has_complex = is_adapter or isinstance(model, _NativeModule)
 
     optim = _build_optimizer(model.parameters(), cfg["optim"])
     sched = _build_scheduler(optim, cfg["optim"].get("scheduler"))
     grad_clip = float(cfg["optim"].get("grad_clip_norm", 0.0))
 
     amp_enabled = bool(cfg["train"].get("amp", True)) and device.type == "cuda"
+    if has_complex and amp_enabled:
+        # Third-party adapters operate on complex tensors (covariance / lag
+        # stack); CUDA's ComplexHalf path is not implemented for matmul, so
+        # AMP must be disabled for them.
+        LOG.info("Disabling AMP for complex-tensor model.")
+        amp_enabled = False
     scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)
 
     loss_cfg = dict(cfg.get("loss", {}))
@@ -347,12 +458,15 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
     stale = 0
     history = []
 
-    for epoch in range(1, epochs + 1):
+    epoch_bar = tqdm(range(1, epochs + 1), desc="epochs", unit="epoch", leave=True)
+    for epoch in epoch_bar:
         model.train()
         t0 = time.time()
         running = 0.0
         n_batches = 0
-        for i, batch in enumerate(train_loader):
+        train_bar = tqdm(train_loader, desc=f"ep {epoch:>3}/{epochs} train",
+                         unit="batch", leave=False)
+        for i, batch in enumerate(train_bar):
             batch = _to_device(batch, device)
             optim.zero_grad(set_to_none=True)
             with torch.cuda.amp.autocast(enabled=amp_enabled):
@@ -366,6 +480,8 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
             scaler.update()
             running += float(loss.detach())
             n_batches += 1
+            train_bar.set_postfix(loss=f"{running / n_batches:.4f}")
+        train_bar.close()
         train_loss = running / max(1, n_batches)
 
         # ---- validation -----------------------------------------------------
@@ -373,27 +489,45 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
         val_rmspe_sum = 0.0
         val_count = 0
         val_loss_sum = 0.0
+        val_samples = 0
+        val_bar = tqdm(val_loader, desc=f"ep {epoch:>3}/{epochs} val  ",
+                       unit="batch", leave=False)
         with torch.no_grad():
-            for batch in val_loader:
+            for batch in val_bar:
                 batch = _to_device(batch, device)
                 with torch.cuda.amp.autocast(enabled=amp_enabled):
                     out = model(batch)
                     loss, _m = loss_fn(out, batch, loss_cfg)
-                val_loss_sum += float(loss.detach()) * batch["angles_rad"].shape[0]
+                n_in_batch = batch["angles_rad"].shape[0]
+                val_loss_sum += float(loss.detach()) * n_in_batch
+                val_samples += n_in_batch
                 pred = _extract_pred_angles(out, batch)
                 if pred is not None:
-                    angles_true_np = batch["angles_rad"].detach().cpu().numpy()
+                    K = pred.shape[-1]
+                    angles_true_np = batch["angles_rad"][..., :K].detach().cpu().numpy()
                     angles_pred_np = pred.detach().cpu().numpy()
                     per_sample = rmspe_deg(angles_pred_np, angles_true_np, reduce="none")
                     val_rmspe_sum += float(per_sample.sum())
                     val_count += per_sample.shape[0]
+                running_val_loss = val_loss_sum / max(1, val_samples)
+                running_rmspe = (val_rmspe_sum / val_count) if val_count else float("nan")
+                val_bar.set_postfix(loss=f"{running_val_loss:.4f}",
+                                    rmspe=f"{running_rmspe:.2f}°")
+        val_bar.close()
         val_loss = val_loss_sum / max(1, len(val_loader.dataset))
         val_rmspe = val_rmspe_sum / max(1, val_count) if val_count else float("nan")
 
         dt = time.time() - t0
         lr_now = optim.param_groups[0]["lr"]
-        LOG.info("epoch %3d/%d  train=%.4f  val=%.4f  val_rmspe=%.3f°  lr=%.2e  [%.1fs]",
-                 epoch, epochs, train_loss, val_loss, val_rmspe, lr_now, dt)
+        tqdm.write(
+            f"epoch {epoch:>3}/{epochs}  train={train_loss:.4f}  "
+            f"val={val_loss:.4f}  val_rmspe={val_rmspe:.3f}°  "
+            f"lr={lr_now:.2e}  [{dt:.1f}s]"
+        )
+        epoch_bar.set_postfix(train=f"{train_loss:.4f}",
+                              val=f"{val_loss:.4f}",
+                              rmspe=f"{val_rmspe:.2f}°",
+                              lr=f"{lr_now:.1e}")
 
         if writer is not None:
             writer.add_scalar("loss/train", train_loss, epoch)
@@ -409,21 +543,27 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
         elif sched is not None:
             sched.step()
 
-        torch.save({"model": model.state_dict(), "epoch": epoch,
+        # Persist the inner model's state_dict so it can be reloaded by
+        # plain `Model(**init).load_state_dict(...)` without the training
+        # wrapper.
+        inner_state = (model._inner.state_dict()
+                       if hasattr(model, "_inner") else model.state_dict())
+        torch.save({"model": inner_state, "epoch": epoch,
                     "cfg": cfg}, ckpt_dir / "last.pt")
         score = val_rmspe if val_count else val_loss
         if score < best_val:
             best_val = score
             stale = 0
-            torch.save({"model": model.state_dict(), "epoch": epoch,
+            torch.save({"model": inner_state, "epoch": epoch,
                         "cfg": cfg, "val_rmspe_deg": val_rmspe},
                        ckpt_dir / "best.pt")
-            LOG.info("  ↳ new best (val_rmspe=%.3f°); saved best.pt", val_rmspe)
+            tqdm.write(f"  ↳ new best (val_rmspe={val_rmspe:.3f}°); saved best.pt")
         else:
             stale += 1
             if stale >= patience:
-                LOG.info("Early stopping at epoch %d (patience=%d)", epoch, patience)
+                tqdm.write(f"Early stopping at epoch {epoch} (patience={patience})")
                 break
+    epoch_bar.close()
 
     with (ckpt_dir / "history.json").open("w") as fh:
         json.dump(history, fh, indent=2)

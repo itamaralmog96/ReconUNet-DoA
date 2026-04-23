@@ -32,12 +32,16 @@ YAML schema::
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import logging
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Dict, Optional, Sequence
 
+import numpy as np
+import torch
+import torch.nn as nn
 import yaml
 
 from reconunet.evaluation.unified_harness import (
@@ -46,8 +50,89 @@ from reconunet.evaluation.unified_harness import (
     evaluate,
     plot_rmse_vs_snr,
 )
+from reconunet.models.third_party._base import BaselineAdapter, BaselineOutput
 
 LOG = logging.getLogger("reconunet.evaluate")
+
+
+def _import_dotted(dotted: str):
+    module_path, _, attr = dotted.rpartition(".")
+    if not module_path:
+        raise ValueError(f"Invalid dotted path: {dotted!r}")
+    module = importlib.import_module(module_path)
+    return getattr(module, attr)
+
+
+class _NativeEVDUNetAdapter(BaselineAdapter):
+    """Wrap a native ``EVDCovarianceReconstructionUNet`` so the unified
+    harness can treat it like any other adapter.  Angle extraction runs a
+    classical MUSIC peak-search on the model's reconstructed covariance.
+    """
+
+    name = "reconunet"
+
+    def __init__(self, class_path: str, K: int = 3,
+                 grid_size: int = 361, angle_range_deg: tuple = (-90.0, 90.0)):
+        self._cls = _import_dotted(class_path)
+        self.K = int(K)
+        self.grid_size = int(grid_size)
+        self.angle_range_deg = tuple(angle_range_deg)
+
+    def build_model(self, cfg: Dict[str, Any]) -> nn.Module:
+        # Drop CLI-only knobs that aren't model __init__ args.
+        init = {k: v for k, v in cfg.items() if k not in {"K", "grid_size", "angle_range_deg"}}
+        return self._cls(**init)
+
+    def prepare_input(self, snapshots, meta):
+        from reconunet.data.scene_renderer import lag_stack
+        return lag_stack(snapshots, tau=int(meta.get("tau", 8)))
+
+    def forward(self, model, prepped, targets=None, meta=None) -> BaselineOutput:
+        out = model(prepped)
+        if isinstance(out, tuple) and len(out) == 3:
+            _eigvals, _eigvecs, K_recon = out
+        else:
+            K_recon = out
+        # Number of sources to extract.  ``K_max`` from the manifest is the
+        # *upper bound* across the corpus (= 8), not the actual K per scene
+        # (= 3 for the paper config).  Picking K_max here would shrink the
+        # noise sub-space to {0}, breaking Root-MUSIC.  Use the adapter's
+        # configured K (overridable via init_cfg["K"]).
+        K = int((meta or {}).get("K", self.K))
+        # Use the exact same Root-MUSIC routine the training loop uses for
+        # val_rmspe, so eval numbers match training-time reporting.
+        from reconunet.models.deep_learning.subspace_models import root_music
+        angles_deg, _, _ = root_music(K_recon, K, K_recon.shape[0])
+        # ``root_music`` returns degrees in [0°, 180°] (broadside = 90°);
+        # subtract 90° to put broadside at 0°, matching the manifest's
+        # angles_rad convention.
+        angles_rad = torch.deg2rad(angles_deg - 90.0)
+        return BaselineOutput(angles_pred=angles_rad, extras={"K_recon": K_recon})
+
+    def _music_peak_pick(self, K_recon: torch.Tensor, K: int, M: int) -> torch.Tensor:
+        """Classical MUSIC on a batch of complex covariance matrices."""
+        device = K_recon.device
+        # Eigendecomposition; eigh returns ascending order.
+        w, V = torch.linalg.eigh(K_recon)
+        # Noise subspace = eigenvectors with the M-K smallest eigenvalues.
+        noise_dim = M - K
+        En = V[..., :noise_dim]                                  # [B, M, M-K]
+
+        g0, g1 = self.angle_range_deg
+        grid = torch.linspace(g0, g1, self.grid_size, device=device)
+        grid_rad = torch.deg2rad(grid)
+        m = torch.arange(M, device=device).view(1, M, 1)
+        # Steering matrix A: [grid_size, M]
+        A = torch.exp(-1j * np.pi * m * torch.sin(grid_rad).view(1, 1, -1)).squeeze(0)
+        A = A.transpose(0, 1)                                    # [grid_size, M]
+        # P(theta) = 1 / || En^H a(theta) ||^2
+        # Compute En^H @ A.T  → [B, M-K, grid_size]
+        proj = En.conj().transpose(-1, -2) @ A.T.unsqueeze(0)    # [B, M-K, grid_size]
+        denom = (proj.abs() ** 2).sum(dim=1)                     # [B, grid_size]
+        spectrum = 1.0 / (denom + 1e-12)
+        _, idx = torch.topk(spectrum, k=K, dim=-1)               # [B, K]
+        peaks_deg, _ = torch.sort(grid[idx], dim=-1)
+        return torch.deg2rad(peaks_deg)
 
 
 def _resolve(path: str, root: Path) -> Path:
@@ -61,18 +146,21 @@ def _build_model_specs(models: list[dict], root: Path) -> list[ModelSpec]:
         name = str(m["name"])
         ckpt = _resolve(m["checkpoint"], root) if "checkpoint" in m else None
         is_classic = bool(m.get("is_classic", False))
+        init = dict(m.get("init", {}))
         if "class_path" in m:
-            adapter = m["class_path"]  # harness handles dotted paths uniformly
+            adapter = _NativeEVDUNetAdapter(m["class_path"])
+            adapter.name = name
         elif "adapter_class" in m:
-            adapter = m["adapter_class"]
+            adapter_cls = _import_dotted(m["adapter_class"])
+            adapter = adapter_cls(**init)
+            adapter.name = name
         else:
             raise ValueError(f"Model {name!r}: must specify class_path or adapter_class")
         out.append(ModelSpec(
             name=name,
             adapter=adapter,
             checkpoint=str(ckpt) if ckpt else None,
-            init_cfg=dict(m.get("init", {})),
-            collate=m.get("collate"),
+            init_cfg=init,
             is_classic=is_classic,
         ))
     return out
