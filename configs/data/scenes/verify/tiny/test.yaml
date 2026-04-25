@@ -1,0 +1,17 @@
+M: 8
+element_spacing_lambda: 0.5
+array_type: ULA
+T: 512
+fs_Hz: 2450000000.0
+speed_of_light: 299800000.0
+tau: 8
+K_max: 8
+angle_range_deg:
+- -60.0
+- 60.0
+snr_range_db:
+- -10.0
+- 20.0
+version: verify-tiny
+created_utc: ''
+notes: verification smoke-test corpus [split=test]

@@ -1,0 +1,40 @@
+# verify/modulation_qpsk.yaml — QPSK source signals instead of Gaussian.
+#
+# NOTE: the modulation type for a scene is currently derived from the
+# generator's sampling logic in SceneManifest.random(); if you want every
+# scene to be QPSK you may need to patch that sampler or override the
+# modulation column post-hoc.  See docs/VERIFY_AND_TEST.md §3.4.
+#
+#   reconunet-generate -c configs/data/verify/modulation_qpsk.yaml --overwrite
+#   python scripts/verify/visualize_scene.py \
+#       data/scenes/verify/modulation_qpsk/train.npy --index 0 \
+#       --out experiments/verify/qpsk_scene.png --show-constellation
+
+manifest:
+  train_path: data/scenes/verify/modulation_qpsk/train.npy
+  val_path:   data/scenes/verify/modulation_qpsk/val.npy
+  test_path:  data/scenes/verify/modulation_qpsk/test.npy
+  train_size: 1000
+  val_size:    200
+  test_size:   200
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [0.0, 20.0]
+  version: "verify-qpsk"
+  notes: "QPSK source modulation — constellation sanity check"
+
+sampling:
+  array_errors: mild
+  k_choices: [2]
+  min_separation_deg: 5.0
+  rng_seed: 20260435
+  modulation: QPSK

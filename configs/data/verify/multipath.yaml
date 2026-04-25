@@ -1,0 +1,60 @@
+# verify/multipath.yaml — exercises the legacy-faithful multipath port.
+#
+# Turns on enable_multipath, with legacy defaults (max_paths=3, uniform
+# distribution, mp_max_delay_factor=10.0) so the rendered covariance includes
+# 0..(max_paths - K) additional incoherent scatterers per scene.
+#
+# Expected signals of a healthy port:
+#   * inspect_manifest shows has_multipath=1 on ~all rows, num_multipath
+#     values spread across [0, max_paths - K].
+#   * visualize_scene's MUSIC spectrum shows extra peaks at the multipath
+#     AoAs (legacy draws them uniformly in azimuth, so they can land
+#     anywhere on the scan grid).
+#   * run_classic_on_manifest with --true-k=3 shows RMSPE degrading vs
+#     the matched non-multipath config (e.g. errors_mild.yaml) because
+#     direct-path MUSIC isn't told about the reflections.
+#
+#   reconunet-generate -c configs/data/verify/multipath.yaml --overwrite
+#   python scripts/verify/inspect_manifest.py \
+#       data/scenes/verify/multipath/test.npy
+#   python scripts/verify/visualize_scene.py \
+#       data/scenes/verify/multipath/test.npy --index 0 \
+#       --out experiments/verify/multipath_scene.png
+#   python scripts/verify/run_classic_on_manifest.py \
+#       data/scenes/verify/multipath/test.npy \
+#       --algo music --n 500 --fixed-k 3 \
+#       --group-by snr_db --out experiments/verify/multipath.csv
+
+manifest:
+  train_path: data/scenes/verify/multipath/train.npy
+  val_path:   data/scenes/verify/multipath/val.npy
+  test_path:  data/scenes/verify/multipath/test.npy
+  train_size: 2000
+  val_size:    500
+  test_size:  3000
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [-10.0, 20.0]
+  version: "verify-multipath"
+  notes: "Legacy-faithful multipath (uniform delay distribution, max_paths=3)"
+
+sampling:
+  array_errors: mild
+  k_choices: [2]                   # K=2 leaves room for up to 1 extra multipath
+  min_separation_deg: 5.0
+  rng_seed: 20260440
+  # --- multipath (legacy parity, ON) -------------------------------------
+  enable_multipath: true
+  max_paths: 3                     # legacy default (line 186 of signal_generator)
+  num_multipath_components: null   # null → random U[0, max_paths - K]
+  multipath_distribution: uniform  # or: exponential
+  mp_max_delay_factor: 10.0        # legacy default (line 186 of signal_generator)

@@ -1,0 +1,37 @@
+# verify/k_sweep.yaml — K ∈ {1,2,3,4,5} probe corpus.
+# SNR held fixed at a high-ish range so the only varying factor is K.
+#
+#   reconunet-generate -c configs/data/verify/k_sweep.yaml --overwrite
+#   python scripts/verify/inspect_manifest.py \
+#       data/scenes/verify/k_sweep/test.npy
+#   python scripts/verify/run_classic_on_manifest.py \
+#       data/scenes/verify/k_sweep/test.npy \
+#       --algo music --n 2500 --true-k --group-by K
+
+manifest:
+  train_path: data/scenes/verify/k_sweep/train.npy
+  val_path:   data/scenes/verify/k_sweep/val.npy
+  test_path:  data/scenes/verify/k_sweep/test.npy
+  train_size: 2500
+  val_size:    500
+  test_size:  5000
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [10.0, 20.0]
+  version: "verify-k-sweep"
+  notes: "K∈{1..5} sweep, high SNR, mild imperfections"
+
+sampling:
+  array_errors: mild
+  k_choices: [1, 2, 3, 4, 5]
+  min_separation_deg: 3.0
+  rng_seed: 20260422

@@ -119,6 +119,20 @@ def generate(cfg: dict, *, root: Path, overwrite: bool = False) -> dict[str, Pat
     k_choices = tuple(int(k) for k in sampling.get("k_choices", [3]))
     min_sep = float(sampling.get("min_separation_deg", 3.0))
 
+    # Multipath knobs (default off — legacy parity when enabled).  Accepted
+    # keys under the YAML ``sampling`` section:
+    #   enable_multipath (bool, default False)
+    #   max_paths (int, default 3)                — legacy default
+    #   num_multipath_components (int or None)     — None = random draw
+    #   multipath_distribution ("uniform"|"exponential")
+    #   mp_max_delay_factor (float, default 10.0)  — legacy default
+    enable_multipath = bool(sampling.get("enable_multipath", False))
+    max_paths = int(sampling.get("max_paths", 3))
+    raw_nmp = sampling.get("num_multipath_components", None)
+    num_mp_components = None if raw_nmp in (None, "none", "None") else int(raw_nmp)
+    mp_distribution = str(sampling.get("multipath_distribution", "uniform"))
+    mp_max_delay_factor = float(sampling.get("mp_max_delay_factor", 10.0))
+
     # Allow the config to switch modulation per split if desired, but default
     # to narrowband (Gaussian) which matches the paper's primary scenario.
     modulation = ModulationType[
@@ -147,6 +161,11 @@ def generate(cfg: dict, *, root: Path, overwrite: bool = False) -> dict[str, Pat
             min_separation_deg=min_sep,
             array_errors=array_errors,
             progress_desc=f"{split:>5} scenes",
+            enable_multipath=enable_multipath,
+            max_paths=max_paths,
+            num_multipath_components=num_mp_components,
+            multipath_distribution=mp_distribution,
+            mp_max_delay_factor=mp_max_delay_factor,
         )
         manifest.save(str(out_path))
         LOG.info("  wrote %s  (%.1f MB + sidecar)",

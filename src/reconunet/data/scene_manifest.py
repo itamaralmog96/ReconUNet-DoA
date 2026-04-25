@@ -28,7 +28,11 @@ the signals on demand.  A single sample occupies **96 bytes**:
     │ mutual_coupling  │ float16│   2  │ mutual-coupling coefficient  │
     │ position_err_pct │ float16│   2  │ fractional position jitter   │
     │ scene_id         │ uint64 │   8  │ cross-split trace id         │
-    │ _pad2            │ uint8  │  34  │ reserved for future fields   │
+    │ has_multipath    │ uint8  │   1  │ bool — enable multipath      │
+    │ num_multipath    │ uint8  │   1  │ # of extra multipath paths   │
+    │ mp_max_delay_fac │ float16│   2  │ legacy max_delay_factor      │
+    │ mp_distribution  │ uint8  │   1  │ 0=uniform, 1=exponential     │
+    │ _pad2            │ uint8  │  29  │ reserved for future fields   │
     ├──────────────────┼────────┼──────┼──────────────────────────────┤
     │ TOTAL                             96                              │
     └──────────────────┴────────┴──────┴──────────────────────────────┘
@@ -109,7 +113,12 @@ _ROW_DTYPE = np.dtype(
         ("mutual_coupling", np.float16),
         ("position_err_pct", np.float16),
         ("scene_id", np.uint64),
-        ("_pad1", np.uint8, (34,)),
+        # --- v1.1 multipath fields (zero-init = no multipath, back-compat) ---
+        ("has_multipath", np.uint8),
+        ("num_multipath", np.uint8),
+        ("mp_max_delay_factor", np.float16),
+        ("mp_distribution", np.uint8),
+        ("_pad1", np.uint8, (29,)),
     ],
     align=False,
 )
@@ -136,6 +145,11 @@ class Scene:
     mutual_coupling: float
     position_err_pct: float
     scene_id: int
+    # --- v1.1 multipath fields (default to "no multipath" for back-compat) ---
+    has_multipath: bool = False
+    num_multipath: int = 0
+    mp_max_delay_factor: float = 10.0      # legacy default
+    mp_distribution: int = 0               # 0 = uniform, 1 = exponential
 
     @property
     def angles_valid(self) -> np.ndarray:
@@ -274,6 +288,14 @@ class SceneManifest:
         if isinstance(index, (slice, np.ndarray, list)):
             raise TypeError("SceneManifest supports scalar indexing only; use iter_rows()")
         r = self._rows[int(index)]
+        # Back-compat: old manifests have zero'd pad bytes, which deserialise
+        # to has_multipath=False, num_multipath=0, mp_max_delay_factor=0.0.
+        # If has_multipath is False we ignore the rest; if True and factor=0
+        # we fall back to the legacy default of 10.0 at render time.
+        has_mp = bool(int(r["has_multipath"]))
+        mp_fac = float(r["mp_max_delay_factor"])
+        if has_mp and mp_fac == 0.0:
+            mp_fac = 10.0
         return Scene(
             seed=int(r["seed"]),
             n_sources=int(r["n_sources"]),
@@ -286,6 +308,10 @@ class SceneManifest:
             mutual_coupling=float(r["mutual_coupling"]),
             position_err_pct=float(r["position_err_pct"]),
             scene_id=int(r["scene_id"]),
+            has_multipath=has_mp,
+            num_multipath=int(r["num_multipath"]),
+            mp_max_delay_factor=mp_fac,
+            mp_distribution=int(r["mp_distribution"]),
         )
 
     def __setitem__(self, index: int, scene: Scene) -> None:
@@ -303,6 +329,10 @@ class SceneManifest:
         r["mutual_coupling"] = np.float16(scene.mutual_coupling)
         r["position_err_pct"] = np.float16(scene.position_err_pct)
         r["scene_id"] = np.uint64(scene.scene_id)
+        r["has_multipath"] = np.uint8(1 if scene.has_multipath else 0)
+        r["num_multipath"] = np.uint8(max(0, int(scene.num_multipath)))
+        r["mp_max_delay_factor"] = np.float16(float(scene.mp_max_delay_factor))
+        r["mp_distribution"] = np.uint8(int(scene.mp_distribution))
 
     def iter_rows(self) -> Iterator[np.void]:
         """Iterate raw structured rows — fastest option for hot loops."""
@@ -340,6 +370,12 @@ class SceneManifest:
         min_separation_deg: float = 3.0,
         array_errors: str = "mild",   # "none" | "mild" | "harsh"
         progress_desc: Optional[str] = None,
+        # --- v1.1 multipath knobs (default off; legacy parity when enabled) ---
+        enable_multipath: bool = False,
+        max_paths: int = 3,                         # legacy default
+        num_multipath_components: Optional[int] = None,
+        multipath_distribution: str = "uniform",    # "uniform" | "exponential"
+        mp_max_delay_factor: float = 10.0,          # legacy default
     ) -> "SceneManifest":
         """Factory that fills a manifest with uniformly-random, valid scenes.
 
@@ -372,6 +408,8 @@ class SceneManifest:
             "harsh": (0.5, 5.0, 0.10, 5.0),
         }
         gain_err, phase_err, coupling, pos_err = err_presets[array_errors]
+        _dist_map = {"uniform": 0, "exponential": 1}
+        mp_dist_code = _dist_map[multipath_distribution]
 
         iterator = range(size)
         if progress_desc is not None:
@@ -388,6 +426,19 @@ class SceneManifest:
                     f"(k={k}, min_sep={min_separation_deg}°)"
                 )
             snr = float(rng.uniform(snr_lo, snr_hi))
+            # Multipath component count — mirrors the legacy logic in
+            # signal_generator.add_multipath: max_additional_paths = max_paths - k,
+            # then either use the user-specified N or draw U[0, max_additional].
+            if enable_multipath:
+                max_additional = max(0, int(max_paths) - int(k))
+                if num_multipath_components is None:
+                    n_mp = int(rng.integers(0, max_additional + 1))
+                else:
+                    n_mp = min(int(num_multipath_components), max_additional)
+                has_mp = bool(n_mp > 0)
+            else:
+                n_mp = 0
+                has_mp = False
             scene = Scene(
                 seed=int(rng.integers(0, 2**32 - 1, dtype=np.uint64)),
                 n_sources=k,
@@ -400,6 +451,10 @@ class SceneManifest:
                 mutual_coupling=coupling,
                 position_err_pct=pos_err,
                 scene_id=int(i),
+                has_multipath=has_mp,
+                num_multipath=n_mp,
+                mp_max_delay_factor=float(mp_max_delay_factor),
+                mp_distribution=mp_dist_code,
             )
             manifest[i] = scene
         return manifest

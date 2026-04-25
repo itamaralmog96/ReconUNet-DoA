@@ -1,0 +1,35 @@
+# verify/errors_none.yaml — perfectly-calibrated ULA, K=3.
+# Baseline: classical MUSIC should hit << 0.1° RMSPE at 20 dB.
+#
+#   reconunet-generate -c configs/data/verify/errors_none.yaml --overwrite
+#   python scripts/verify/run_classic_on_manifest.py \
+#       data/scenes/verify/errors_none/test.npy \
+#       --algo music --n 1000 --true-k --group-by snr_db
+
+manifest:
+  train_path: data/scenes/verify/errors_none/train.npy
+  val_path:   data/scenes/verify/errors_none/val.npy
+  test_path:  data/scenes/verify/errors_none/test.npy
+  train_size: 2000
+  val_size:    500
+  test_size:  3000
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [-10.0, 20.0]
+  version: "verify-errors-none"
+  notes: "No array imperfections — lower bound baseline"
+
+sampling:
+  array_errors: none
+  k_choices: [3]
+  min_separation_deg: 3.0
+  rng_seed: 20260430

@@ -1,0 +1,37 @@
+# verify/errors_harsh.yaml — stress-test imperfection preset.
+#   (gain 0.5 dB, phase 5°, coupling 0.10, position 5 %)
+# Expect MUSIC to hit a ~1–2° floor even at 20 dB — this is the ReconUNet
+# "reconstruct the covariance before estimating" motivation.
+#
+#   reconunet-generate -c configs/data/verify/errors_harsh.yaml --overwrite
+#   python scripts/verify/run_classic_on_manifest.py \
+#       data/scenes/verify/errors_harsh/test.npy \
+#       --algo music,rootmusic --n 1500 --true-k --group-by snr_db
+
+manifest:
+  train_path: data/scenes/verify/errors_harsh/train.npy
+  val_path:   data/scenes/verify/errors_harsh/val.npy
+  test_path:  data/scenes/verify/errors_harsh/test.npy
+  train_size: 2000
+  val_size:    500
+  test_size:  3000
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [-10.0, 20.0]
+  version: "verify-errors-harsh"
+  notes: "Harsh imperfections — stress test"
+
+sampling:
+  array_errors: harsh
+  k_choices: [3]
+  min_separation_deg: 3.0
+  rng_seed: 20260432

@@ -1,0 +1,37 @@
+# verify/snr_sweep.yaml — SNR probe corpus (-20 to 30 dB).
+# Fixed K=3, mild imperfections, narrowband.  Larger test split so
+# per-SNR-bucket averages are tight.
+#
+#   reconunet-generate -c configs/data/verify/snr_sweep.yaml --overwrite
+#   python scripts/verify/run_classic_on_manifest.py \
+#       data/scenes/verify/snr_sweep/test.npy \
+#       --algo music,rootmusic,esprit,mvdr --n 2000 --true-k \
+#       --group-by snr_db --snr-bins "-20,-15,-10,-5,0,5,10,15,20,25,30"
+
+manifest:
+  train_path: data/scenes/verify/snr_sweep/train.npy
+  val_path:   data/scenes/verify/snr_sweep/val.npy
+  test_path:  data/scenes/verify/snr_sweep/test.npy
+  train_size: 2000
+  val_size:    500
+  test_size:  5000
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [-20.0, 30.0]
+  version: "verify-snr-sweep"
+  notes: "SNR probe [-20, 30] dB, K=3, mild imperfections"
+
+sampling:
+  array_errors: mild
+  k_choices: [3]
+  min_separation_deg: 3.0
+  rng_seed: 20260421
