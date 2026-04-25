@@ -314,13 +314,38 @@ def _compute_loss_native(
     batch: dict[str, Any],
     loss_cfg: dict,
 ) -> tuple[torch.Tensor, dict[str, float]]:
-    """Native models: sum of weighted terms keyed in the output dict.
+    """Native models: weighted sum of paper-faithful composite-loss terms.
 
-    Native models are expected to return either:
+    Implements (Almog & Weiss 2026 §IV "Composite loss"):
 
-    * an ``nn.Module.forward`` output of type dict with keys that match
-      loss_cfg entries (e.g. 'eigval_loss', 'eigvec_loss', ...), **or**
-    * a dict with a single 'loss' key (already reduced).
+        L = w_eig * L_eig + w_proj * L_proj + w_dom * L_dom + w_rec * L_rec
+
+    with, for each batch sample b (let N = M = number of array elements,
+    K_b = batch["n_sources"][b], V_S = first K_b columns of the
+    eigvec matrix sorted by descending eigval):
+
+        L_rec  = (1 / N^2) * || K_recon - K_clean ||_F^2
+        L_eig  = mean_k ( eigvals_pred_k - eigvals_true_k )^2
+        L_proj = (1 / N^2) * || V_S V_S^H (pred) - V_S V_S^H (true) ||_F^2
+        L_dom  = 1 - | < v1_pred , v1_true > |          (sign-/phase-robust)
+
+    Per-sample K is sourced from ``batch["n_sources"]`` and applied as a
+    1{col < K} column mask on both the predicted and the true eigenvector
+    matrices, so a batch with mixed K (k_choices=[1,2,3,4]) is handled
+    correctly without a Python loop.
+
+    Loss-key mapping (consumed via ``key.removesuffix("_weight")`` below):
+
+        eigval_weight         -> L_eig
+        proj_weight           -> L_proj   (paper-faithful, leading-K projector)
+        eigvec_weight         -> L_proj   (legacy alias, kept for old configs)
+        dom_weight            -> L_dom
+        reconstruction_weight -> L_rec    (N^2-normalised)
+
+    The supervision target for L_rec / L_eig / L_proj / L_dom is the
+    *clean* covariance (``batch["covariance_clean"]``); the corrupted SCM
+    only enters the network as input.  See PAPER_FAITHFUL_TRAINING.md for
+    the bug-fix log.
     """
     if isinstance(out, torch.Tensor):
         return out, {"loss": float(out.detach())}
@@ -333,29 +358,70 @@ def _compute_loss_native(
     total: torch.Tensor | None = None
 
     # ---- EVDUNet-style outputs: derive standard loss terms on demand. ----
-    K_true = batch.get("covariance")
+    K_true = batch.get("covariance_clean")
+    if K_true is None:
+        K_true = batch.get("covariance")
     if "K_recon" in out and K_true is not None:
         K_recon = out["K_recon"]
-        K_true_dev = K_true.to(K_recon.device)
+        device = K_recon.device
+        K_true_dev = K_true.to(device)
+        B, N, _ = K_recon.shape                  # N == M (sensor count)
+        N2 = float(N * N)
+
+        # ---- L_rec: Frobenius reconstruction normalised by N^2 -----------
         diff = K_recon - K_true_dev
-        # Frobenius reconstruction loss, normalised per-sample.
-        recon = (diff.abs() ** 2).sum(dim=(-1, -2)).mean()
-        out = {**out, "reconstruction": recon}
+        l_rec_per = (diff.abs() ** 2).sum(dim=(-1, -2)) / N2     # [B]
+        l_rec = l_rec_per.mean()
+        out = {**out, "reconstruction": l_rec}
+
         if "eigvals" in out and "eigvecs" in out:
-            # Synthesise eigval / eigvec supervision from the EVD of K_true so
-            # the configured ``eigval_weight`` / ``eigvec_weight`` are usable
-            # without an explicit ground-truth EVD field in the manifest.
             with torch.no_grad():
                 w_true, V_true = torch.linalg.eigh(K_true_dev)
-                w_true = torch.flip(w_true, dims=[-1])         # descending
-                V_true = torch.flip(V_true, dims=[-1])
+                w_true = torch.flip(w_true, dims=[-1])     # descending eigvals
+                V_true = torch.flip(V_true, dims=[-1])     # matching eigvec columns
             eigvals_pred = out["eigvals"]
             eigvecs_pred = out["eigvecs"]
+
+            # ---- L_eig: eigenvalue MSE in descending order on both sides --
+            l_eig = torch.nn.functional.mse_loss(
+                eigvals_pred, w_true.to(eigvals_pred.dtype)
+            )
+
+            # ---- Per-sample signal-subspace mask (uses batch["n_sources"]) -
+            # n_src[b] = K_b in {1..K_max}; we want a [B, N] real mask that
+            # selects the first K_b eigvec columns and zeros the rest.
+            n_src = batch["n_sources"].to(device=device, dtype=torch.long)
+            col_idx = torch.arange(N, device=device).unsqueeze(0)        # [1, N]
+            mask_real = (col_idx < n_src.unsqueeze(1)).to(eigvecs_pred.real.dtype)
+            mask = mask_real.unsqueeze(1)                                # [B, 1, N]
+
+            # ---- L_proj: leading-K signal-subspace projector difference ---
+            # P_S(V) = V_S V_S^H = sum_{k<K} v_k v_k^H.  Multiplying every
+            # column by mask[b, 0, k] zeroes the noise-subspace columns, so
+            # the outer product collapses to the K-column projector exactly.
+            Vs_pred = eigvecs_pred * mask                                # [B, N, N]
+            Vs_true = V_true * mask
+            P_pred = Vs_pred @ Vs_pred.conj().transpose(-2, -1)
+            P_true = Vs_true @ Vs_true.conj().transpose(-2, -1)
+            l_proj_per = ((P_pred - P_true).abs() ** 2).sum(dim=(-1, -2)) / N2
+            l_proj = l_proj_per.mean()
+
+            # ---- L_dom: sign-/phase-robust dominant-eigvec distance --------
+            # |<v_pred, v_true>| is invariant to a global complex phase, so
+            # the sign-flip ambiguity that always afflicts EVD outputs is
+            # absorbed by the .abs().
+            v1_pred = eigvecs_pred[..., :, 0]                            # [B, N]
+            v1_true = V_true[..., :, 0]
+            inner = (v1_pred.conj() * v1_true).sum(dim=-1)               # [B] complex
+            l_dom = (1.0 - inner.abs()).mean()
+
             out = {
                 **out,
-                "eigval": torch.nn.functional.mse_loss(eigvals_pred, w_true.to(eigvals_pred.dtype)),
-                # Subspace distance: 1 - mean |<v_pred, v_true>|^2.
-                "eigvec": (1.0 - (eigvecs_pred.conj() * V_true).sum(dim=-2).abs().pow(2).mean()).real,
+                "eigval":         l_eig,
+                "proj":           l_proj,
+                "eigvec":         l_proj,   # legacy alias for old configs
+                "dom":            l_dom,
+                "reconstruction": l_rec,
             }
 
     for key, weight in loss_cfg.items():

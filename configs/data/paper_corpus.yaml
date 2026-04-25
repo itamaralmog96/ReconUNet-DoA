@@ -1,0 +1,109 @@
+# --------------------------------------------------------------------------
+# Paper-faithful dataset config — Almog & Weiss, "ReconUNet" (2026).
+# --------------------------------------------------------------------------
+#
+# Source spec: docs/paper.pdf  §IV "Training Approach and Experimental Setup"
+# (signal model, dataset generation, angles & separation, counts, multipath,
+# imperfections, sizes, splits, training-SNR schedule).
+#
+# This config covers the TRAINING corpus.  For the wider evaluation sweep
+# (SNR ∈ [-20, 20] dB), use configs/data/paper_corpus_eval.yaml.
+#
+# Compared to configs/data/shared_manifest.yaml (which is a simplified single-K,
+# no-multipath, mild-only corpus), this config:
+#
+#   • samples K ∈ {1, 2, 3, 4}        (one main + I ∈ {0,1,2,3} interferers)
+#   • enforces 10° minimum separation between direct sources
+#   • enables coherent multipath replicas with up to 3 per scene
+#   • restricts training SNR to [-10, +10] dB  (eval extends to [-20, +20] dB)
+#   • uses the "mild" imperfection preset
+#
+# Two acknowledged gaps to the paper that the on-disk manifest format cannot
+# express today (see docs/PAPER_FAITHFUL_DATASET.md for the full discussion):
+#
+#   (a) The paper renders BOTH perfect and imperfect arrays per epoch with
+#       per-scene randomization.  The current sampler picks ONE preset
+#       globally per manifest.  Workaround: train on this manifest (mild)
+#       and validate the perfect-array baseline by running classics on a
+#       second manifest with array_errors=none.
+#
+#   (b) The paper draws multipath count m ∈ {0,1,2,3} flat for all K.  The
+#       current sampler caps m by (max_paths − K), so at K=4 m ∈ {0,1,2,3}
+#       (matches paper) but at K=1 it lets m grow up to 6.  We set max_paths
+#       below to keep the K=4 head matching exactly; lower-K scenes will be
+#       broader-distributed than the paper.  This is conservative — more
+#       coherence, not less.
+#
+# Usage:
+#     reconunet-generate --config configs/data/paper_corpus.yaml
+#     reconunet-train    --config configs/train/reconunet.yaml
+#
+# Switching back to the simplified corpus:
+#     reconunet-generate --config configs/data/shared_manifest.yaml --overwrite
+# --------------------------------------------------------------------------
+
+manifest:
+  train_path: data/scenes/paper/train.npy
+  val_path:   data/scenes/paper/val.npy
+  test_path:  data/scenes/paper/test.npy
+  # Paper §IV: "The corpus comprises ≈ 2.0×10⁶ paired examples".
+  train_size: 2_000_000
+  val_size:     50_000
+  test_size:    50_000
+
+meta:
+  # ---- array geometry — paper §IV "Signal model and geometry" ------------
+  M: 8                              # N=8 sensors (paper)
+  element_spacing_lambda: 0.5       # d = λ/2 (paper)
+  array_type: ULA
+
+  # ---- signal model -------------------------------------------------------
+  T: 512                            # T=512 snapshots/scene (paper)
+  fs_Hz: 2.45e9                     # narrowband around 2.45 GHz (paper)
+  speed_of_light: 2.998e8
+  tau: 8                            # lag depth τ=8 (paper §IV "Exact training hyperparameters")
+
+  # ---- sampling strategy --------------------------------------------------
+  K_max: 8
+  # Paper uses θ ∈ [30°, 150°] in the array-axis (cosine) convention.  Our
+  # SceneRenderer uses the broadside-0° (sine) convention, so the
+  # equivalent angle range is [-60°, +60°] — same physical angles, just
+  # measured from the broadside instead of the array axis.
+  angle_range_deg: [-60.0, 60.0]
+  # Paper §IV "SNR schedule: training sweeps SNR ∈ [-10, 10] dB".
+  snr_range_db:    [-10.0, 10.0]
+
+  version: "paper-1.0"
+  notes: "Paper-faithful training corpus (Almog & Weiss 2026 §IV)."
+
+sampling:
+  # Paper §IV "Imperfections: randomized per scene as in Section II-C".
+  # We use the "mild" preset (gain 0.1 dB, phase 1°, coupling 0.02, pos 1%).
+  # See gap (a) in the file header for what this approximation costs.
+  array_errors: mild
+
+  # Paper §IV "Counts: one main source plus I ∈ {0,1,2,3} equal-power
+  # interferers, giving K = 1 + I".
+  k_choices: [1, 2, 3, 4]
+
+  # Paper §IV "direct-path DoAs are drawn from [30°,150°] with a minimum
+  # 10° separation between direct sources".
+  min_separation_deg: 10.0
+
+  # Paper §IV "Correlated multipath: M ∈ {0, 1, 2, 3} narrowband replicas
+  # with small delays and independent departure angles".
+  enable_multipath: true
+  # max_paths is the legacy ceiling on (K + replicas).  Setting it to 7
+  # makes max_additional_paths = max_paths - K equal to 3 at the K=4 head
+  # (paper-faithful), with mild over-allocation at lower K (see gap (b)).
+  max_paths: 7
+  num_multipath_components: null     # null = random draw U[0, max_additional]
+  multipath_distribution: uniform    # legacy default; small delay regime
+  mp_max_delay_factor: 10.0          # legacy default; τ_max = 10/fs ≈ 4 ns
+
+  modulation: NARROWBAND             # paper §IV "narrowband around 2.45 GHz"
+
+  # Master seed; the CLI splits this deterministically into train/val/test
+  # children via numpy.random.SeedSequence.spawn(3) so the splits share no
+  # scenes.  Changing this invalidates every checkpoint.
+  rng_seed: 20260420

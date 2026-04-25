@@ -1,0 +1,63 @@
+# --------------------------------------------------------------------------
+# SubspaceNet (Shmuel et al., 2023) — paper-faithful baseline training.
+# --------------------------------------------------------------------------
+#
+# Almog & Weiss 2026 §IV "Baselines and training settings" report that all
+# three deep-learning methods (ReconUNet, SubspaceNet, SubViT) were trained
+# on the SAME paired corpus with the SAME optimiser schedule:
+#
+#     Adam, LR 1e-4, weight decay 1e-5, batch 2048, up to 300 epochs,
+#     ReduceLROnPlateau (factor 0.7, patience 5), early stop patience 25,
+#     gradient L2-norm clipping at 1.0.
+#
+# This config applies that schedule to the SubspaceNet baseline, swapping
+# only the loss (RMSPE between Root-MUSIC angles and ground truth) and
+# dataset path (paper_corpus.yaml).
+#
+# Companion to configs/train/reconunet_paper.yaml; see
+# docs/PAPER_FAITHFUL_TRAINING.md for the full audit.
+# --------------------------------------------------------------------------
+
+model:
+  name: subspacenet
+  adapter_class: reconunet.models.third_party.subspacenet_adapter.SubspaceNetAdapter
+  init:
+    M: 3                              # SubspaceNet's "M" = #sources upper bound
+    tau: 8                            # paper-aligned (matches paper_corpus.yaml)
+    diff_method: root_music
+
+collate: subspacenet
+
+data:
+  config: configs/data/paper_corpus.yaml
+  batch_size: 2048                    # paper §IV
+  num_workers: 8
+  pin_memory: true
+
+optim:
+  optimizer: adam                     # paper §IV (was the upstream-default adam)
+  lr: 1.0e-4                          # paper §IV (upstream default was 1e-3)
+  weight_decay: 1.0e-5                # paper §IV (upstream default was 1e-9)
+  grad_clip_norm: 1.0                 # paper §IV
+  scheduler:
+    name: reduce_on_plateau           # paper §IV (upstream used StepLR)
+    mode: min
+    factor: 0.7
+    patience: 5
+    min_lr: 1.0e-6
+
+loss:
+  rmspel_weight: 1.0                  # SubspaceNet's canonical RMSPE objective
+
+train:
+  epochs: 300                         # paper §IV
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/subspacenet_paper/checkpoints/
+  tensorboard_dir: experiments/runs/subspacenet_paper/tb/
+  early_stopping_patience: 25         # paper §IV
+  amp: true
+
+eval:
+  config: configs/eval/evaluation_config.yaml
+
+seed: 20260420

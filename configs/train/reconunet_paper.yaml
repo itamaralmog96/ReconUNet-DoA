@@ -1,0 +1,91 @@
+# --------------------------------------------------------------------------
+# ReconUNet (EVDUNet) — paper-faithful TRAINING config (Almog & Weiss 2026).
+# --------------------------------------------------------------------------
+#
+# Source spec: docs/paper.pdf  §IV "Exact training hyperparameters" and
+# §IV "Composite loss".
+#
+# Companion to configs/data/paper_corpus.yaml.  This file pins every
+# hyperparameter that the paper writes down explicitly, so a clean run from
+# this YAML reproduces the paper's training schedule end-to-end as far as
+# the existing trainer supports it.  See docs/PAPER_FAITHFUL_TRAINING.md
+# for what is approximate vs. exact.
+#
+# Differences from configs/train/reconunet.yaml (the legacy thesis-tuned
+# config) are called out inline below.
+# --------------------------------------------------------------------------
+
+model:
+  name: reconunet
+  class_path: reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet
+  init:
+    M: 8                              # paper §IV: N=8 sensors
+    tau: 8                            # paper §IV: lag depth tau=8
+    activation_type: anti_rectifier   # paper §IV: anti-rectifier activation
+    use_dropout: true                 # paper §IV: "dropout enabled"
+    # Note: SCM-head Hermitian symmetrisation + diagonal loading eps=1
+    # is hard-coded in EVDUNet.gram_diagonal_overload (eps=1.0) and matches
+    # the paper without needing a config knob.
+
+collate: reconunet                    # reconunet.data.scene_dataset.get_collate
+
+data:
+  # Paper §IV explicitly says the training corpus is the 2x10^6-scene
+  # one with K in {1..4}, multipath, mild errors, training SNR [-10,10] dB.
+  config: configs/data/paper_corpus.yaml
+  batch_size: 2048                    # paper §IV: batch 2048   (was 4096)
+  num_workers: 8
+  pin_memory: true
+
+optim:
+  optimizer: adam                     # paper §IV: Adam
+  lr: 1.0e-4                          # paper §IV: LR = 1e-4    (was 1e-3)
+  weight_decay: 1.0e-5                # paper §IV: wd = 1e-5    (was 1e-6)
+  grad_clip_norm: 1.0                 # paper §IV: global L2 norm clip = 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.7                       # paper §IV: factor 0.7   (was 0.5)
+    patience: 5                       # paper §IV: patience 5   (was 4)
+    min_lr: 1.0e-6
+
+loss:
+  # The paper's composite loss is L = w_eig*L_eig + w_proj*L_proj
+  #                                + w_dom*L_dom + w_rec*L_rec
+  #
+  # As of the bug-fix log entry "L_dom + leading-K L_proj + N^2-normalised
+  # L_rec" in docs/PAPER_FAITHFUL_TRAINING.md, _compute_loss_native in
+  # src/reconunet/cli/train.py implements all four terms paper-faithfully:
+  #
+  #   eigval_weight         <-- L_eig    (MSE on descending-sorted eigvals)
+  #   proj_weight           <-- L_proj   (leading-K projector ||V_S V_S^H||_F^2,
+  #                                       per-sample K from batch["n_sources"],
+  #                                       normalised by N^2)
+  #   dom_weight            <-- L_dom    (1 - |<v1_pred, v1_true>|, sign- and
+  #                                       phase-robust dominant-eigvector loss)
+  #   reconstruction_weight <-- L_rec    (1/N^2 || K_recon - K_clean ||_F^2,
+  #                                       supervised against the *clean* SCM
+  #                                       A_ideal A_ideal^H — see bug-fix log
+  #                                       entry "Identity learning via corrupted
+  #                                       target" in PAPER_FAITHFUL_TRAINING.md)
+  #
+  # ``eigvec_weight`` is still recognised by the trainer as a legacy alias for
+  # L_proj, so older configs keep working; new configs should prefer
+  # ``proj_weight``.
+  eigval_weight:          1.0         # w_eig
+  proj_weight:            1.0         # w_proj  (paper-faithful, leading-K)
+  dom_weight:             1.0         # w_dom   (now implemented; was 0 before)
+  reconstruction_weight:  1.0         # w_rec   (paper uses 1.0; legacy was 0.1)
+
+train:
+  epochs: 300                         # paper §IV: up to 300 epochs   (was 80)
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/reconunet_paper/checkpoints/
+  tensorboard_dir: experiments/runs/reconunet_paper/tb/
+  early_stopping_patience: 25         # paper §IV: patience 25 (was 15)
+  amp: true                           # auto-disabled by trainer for complex tensors
+
+eval:
+  config: configs/eval/evaluation_config.yaml
+
+seed: 20260420                        # matches paper_corpus.yaml master seed

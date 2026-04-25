@@ -40,10 +40,21 @@ class CanonicalSample:
     M=8/T=512/K=3 scenes but lets the collate functions recycle work (e.g.
     the SubViT path can reuse the covariance that ReconUNet's collate also
     needs) without re-rendering.
+
+    The dataset always emits *both* covariances:
+
+    * ``covariance``         — corrupted sample covariance from the
+                               rendered (noisy / multipath / array-error)
+                               snapshots.  This is the model's *input*.
+    * ``covariance_clean``   — ideal A_ideal @ A_ideal^H, error-free /
+                               multipath-free / noise-free.  This is the
+                               paper's *supervision target* for the
+                               composite loss.
     """
 
     snapshots: torch.Tensor          # complex [M, T]
-    covariance: torch.Tensor         # complex [M, M]
+    covariance: torch.Tensor         # complex [M, M]   (corrupted)
+    covariance_clean: torch.Tensor   # complex [M, M]   (clean target)
     angles_rad: torch.Tensor         # float  [K_MAX]  (NaN padded)
     n_sources: int
     snr_db: float
@@ -84,6 +95,7 @@ class SceneDataset(Dataset):
         return CanonicalSample(
             snapshots=torch.from_numpy(result.snapshots),
             covariance=torch.from_numpy(result.covariance),
+            covariance_clean=torch.from_numpy(result.covariance_clean),
             angles_rad=torch.from_numpy(angles_padded),
             n_sources=scene.n_sources,
             snr_db=scene.snr_db,
@@ -119,14 +131,16 @@ class ReconUNetCollate(_BaseCollate):
         snaps = torch.stack([b.snapshots for b in batch], dim=0)   # [B, M, T] complex
         stack = lag_stack(snaps, tau=self.meta.tau)                # [B, τ, 2M, M] float
         cov = torch.stack([b.covariance for b in batch], dim=0)    # [B, M, M] complex
+        cov_clean = torch.stack([b.covariance_clean for b in batch], dim=0)  # [B, M, M]
         angles, k, snr, ids = self._stack_common(batch)
         return {
-            "input":       stack,
-            "covariance":  cov,
-            "angles_rad":  angles,
-            "n_sources":   k,
-            "snr_db":      snr,
-            "scene_ids":   ids,
+            "input":            stack,
+            "covariance":       cov,
+            "covariance_clean": cov_clean,
+            "angles_rad":       angles,
+            "n_sources":        k,
+            "snr_db":           snr,
+            "scene_ids":        ids,
         }
 
 
@@ -156,13 +170,18 @@ class SubViTCollate(_BaseCollate):
     def __call__(self, batch: Sequence[CanonicalSample]) -> Dict[str, torch.Tensor]:
         K_batched = torch.stack([b.covariance for b in batch], dim=0)  # [B, M, M] complex
         img = torch.stack([K_batched.real, K_batched.imag], dim=1).float()  # [B, 2, M, M]
+        # Forwarded for parity with ReconUNetCollate (SubViT itself doesn't
+        # use it as a target — its loss is angle-grid BCE — but downstream
+        # auxiliary losses or evaluation hooks may want the clean SCM too).
+        cov_clean = torch.stack([b.covariance_clean for b in batch], dim=0)
         angles, k, snr, ids = self._stack_common(batch)
         return {
-            "input":       img,
-            "angles_rad":  angles,
-            "n_sources":   k,
-            "snr_db":      snr,
-            "scene_ids":   ids,
+            "input":            img,
+            "covariance_clean": cov_clean,
+            "angles_rad":       angles,
+            "n_sources":        k,
+            "snr_db":           snr,
+            "scene_ids":        ids,
         }
 
 

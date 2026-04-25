@@ -50,6 +50,14 @@ if TYPE_CHECKING:  # pragma: no cover — for static type-checkers only
 # ---------------------------------------------------------------------------
 
 
+# Default coupling phase and per-diagonal jitter follow the legacy
+# ``signalgen.array_processing.ArrayConfig`` settings (v0 thesis defaults), which
+# in turn track Almog & Weiss 2026 §II-C eqs. (24)-(25).  ρ (the magnitude of γ)
+# is provided per scene via ``Scene.mutual_coupling``.
+_DEFAULT_COUPLING_PHASE_DEG: float = -100.0     # legacy ArrayConfig.coupling_phase_deg
+_DEFAULT_COUPLING_VARIATION: float = 0.9        # legacy ArrayConfig.coupling_variation
+
+
 def _steering_vector(
     angles_rad: np.ndarray,
     M: int,
@@ -60,27 +68,135 @@ def _steering_vector(
 ) -> np.ndarray:
     """Return the ``[M, K]`` complex steering matrix ``A(θ)``.
 
-    All error vectors are shape ``[M]`` and applied element-wise.
+    Parameters
+    ----------
+    angles_rad
+        Source angles in radians, shape ``[K]``.  ``θ=0`` is the array
+        broadside, ``θ`` measured around it (sine convention).
+    M
+        Number of array elements.  The ULA is assumed along the x-axis, with
+        the n-th element nominally at ``(n · d, 0)`` where ``d = element_spacing_lambda · λ``.
+    element_spacing_lambda
+        Inter-element spacing in wavelengths (``d/λ``).
+    gain_err, phase_err
+        Real arrays of shape ``[M]`` — multiplicative gain (linear) and additive
+        phase (radians) applied per element.
+    position_err
+        Per-element position perturbation.  Two shapes are accepted:
+
+        * ``[M, 2]``  — paper-faithful: rows are ``(εx_n, εy_n)`` in **wavelengths**,
+          so ``ε_n ∼ N(0, σ_pos² · I_2)`` matches Almog & Weiss 2026 eq. (21).
+          The phase contribution is
+          ``-2π · ((n·d/λ + εx_n) · sin θ + εy_n · cos θ)``,
+          covering both axial and transverse jitter.
+        * ``[M]``    — legacy / notebook compatibility: interpreted as a
+          *fractional* perturbation of ``d/λ`` (axial only), giving
+          ``-2π · n · d/λ · (1 + position_err[n]) · sin θ``.  Used by the
+          older `_build_verify_array.py` notebook script and a handful of
+          ad-hoc callers.
+
+    Notes
+    -----
+    Composite operator order follows paper eq. (26) ``H = M·G``: gain/phase
+    are applied here as ``G = diag(gain_err · exp(j·phase_err))`` (so the
+    output of this function is ``G · a_pos``), and the caller multiplies by
+    the mutual-coupling matrix ``M`` afterwards (``A_full = C @ A_full`` in
+    :meth:`SceneRenderer.render`).
     """
-    m = np.arange(M, dtype=np.float64)[:, None]          # [M, 1]
+    n = np.arange(M, dtype=np.float64)[:, None]          # [M, 1] — element index
     theta = angles_rad[None, :]                           # [1, K]
-    d_over_lambda = element_spacing_lambda * (1.0 + position_err[:, None])
-    phase = -2.0 * np.pi * m * d_over_lambda * np.sin(theta)
+
+    if position_err.ndim == 2:
+        # Paper-faithful: 2-D Gaussian (εx, εy) in λ units.
+        if position_err.shape != (M, 2):
+            raise ValueError(
+                f"2-D position_err must be [M, 2]; got {position_err.shape}"
+            )
+        x_lambda = n * element_spacing_lambda + position_err[:, 0:1]   # [M, 1]
+        y_lambda = position_err[:, 1:2]                                # [M, 1]
+        phase = -2.0 * np.pi * (
+            x_lambda * np.sin(theta) + y_lambda * np.cos(theta)
+        )
+    elif position_err.ndim == 1:
+        # Legacy axial-fractional convention (kept for back-compat).
+        if position_err.shape != (M,):
+            raise ValueError(
+                f"1-D position_err must be [M]; got {position_err.shape}"
+            )
+        d_over_lambda = element_spacing_lambda * (1.0 + position_err[:, None])
+        phase = -2.0 * np.pi * n * d_over_lambda * np.sin(theta)
+    else:
+        raise ValueError(
+            f"position_err must have 1 or 2 dims; got ndim={position_err.ndim}"
+        )
+
     A = np.exp(1j * phase)                                # [M, K]
     A = A * gain_err[:, None] * np.exp(1j * phase_err[:, None])
     return A
 
 
-def _mutual_coupling_matrix(M: int, coupling: float) -> np.ndarray:
-    """Tri-diagonal nearest-neighbour coupling Toeplitz matrix."""
-    if coupling == 0.0:
+def _mutual_coupling_matrix(
+    M: int,
+    rho: float,
+    *,
+    rng: Optional[np.random.Generator] = None,
+    phase_deg: float = _DEFAULT_COUPLING_PHASE_DEG,
+    variation: float = _DEFAULT_COUPLING_VARIATION,
+) -> np.ndarray:
+    """Reciprocal Toeplitz mutual-coupling matrix ``M = I + E`` (paper eq. 24-25).
+
+    Off-diagonal entries follow a geometric decay with per-diagonal uniform
+    jitter,
+
+        ``c_k = γ^k · v_k,        k = 1, …, N-1``
+        ``γ   = ρ · exp(j·φ_c)``                          (paper eq. 25)
+        ``v_k ∼ U(1 − δ/2, 1 + δ/2)``
+
+    and the matrix is built as ``E[i, j] = c_{|i-j|}`` for ``i ≠ j``, zero on
+    the diagonal — symmetric Toeplitz, "reciprocal" in the paper's sense
+    (passive sensors couple identically in both directions).
+
+    Parameters
+    ----------
+    M
+        Array size.
+    rho
+        ``|γ|`` — magnitude of the unit-step coupling coefficient (the
+        ``mutual_coupling`` field of :class:`Scene`).  ``ρ = 0`` short-circuits
+        to the identity.
+    rng
+        Optional generator for the per-diagonal jitter ``v_k``.  Threading
+        ``Scene.seed`` through here keeps the coupling matrix reproducible
+        across re-runs.
+    phase_deg, variation
+        ``φ_c`` and ``δ`` from eq. (25).  Default to the legacy
+        ``ArrayConfig`` settings (φ_c=-100°, δ=0.9) so ``mild`` and ``harsh``
+        keep their established meaning while now exercising every off-diagonal.
+
+    Notes
+    -----
+    The previous nearest-neighbour-only Toeplitz ``[1, ρ, 0, …, 0]`` was a
+    simplification; this implementation matches the paper and the legacy
+    ``signalgen/array_processing.py::_generate_mutual_coupling_matrix``.
+    """
+    if rho == 0.0 or M <= 1:
         return np.eye(M, dtype=np.complex128)
-    col = np.zeros(M, dtype=np.complex128)
-    col[0] = 1.0
-    col[1] = coupling
-    # symmetric Toeplitz
-    from scipy.linalg import toeplitz  # local import — scipy is a required dep
-    return toeplitz(col, col)
+
+    rng = rng if rng is not None else np.random.default_rng()
+    gamma = float(rho) * np.exp(1j * np.deg2rad(float(phase_deg)))
+    v = rng.uniform(1.0 - variation / 2.0, 1.0 + variation / 2.0, size=M - 1)
+    # c_k = γ^k · v_k for k = 1..M-1   (paper eq. 25)
+    powers = gamma ** np.arange(1, M)                              # [M-1]
+    c = powers * v                                                 # [M-1] complex
+
+    # Symmetric Toeplitz: E[i, j] = c_{|i-j|}, E[i, i] = 0.
+    # Build via index-difference broadcast — O(M²) but M ≤ 8 in practice.
+    idx = np.arange(M)
+    diff = np.abs(idx[:, None] - idx[None, :])                     # [M, M] int
+    E = np.zeros((M, M), dtype=np.complex128)
+    nonzero = diff > 0
+    E[nonzero] = c[diff[nonzero] - 1]                              # c is 1-indexed → diff-1
+    return np.eye(M, dtype=np.complex128) + E
 
 
 # ---------------------------------------------------------------------------
@@ -147,14 +263,43 @@ def _legacy_bandlimited_sources(
 
 @dataclass
 class RenderResult:
-    """Everything the renderer produces for one scene."""
+    """Everything the renderer produces for one scene.
 
-    snapshots: np.ndarray     # [M, T] complex64
-    covariance: np.ndarray    # [M, M] complex64 (sample covariance)
-    steering: np.ndarray      # [M, K] complex64
-    source_signals: np.ndarray  # [K, T] complex64
-    noise: np.ndarray         # [M, T] complex64
-    angles_rad: np.ndarray    # [K] float64
+    ``covariance`` is the *corrupted* sample covariance (carries noise,
+    array errors, mutual coupling, multipath) — that's the deep network's
+    input.  ``covariance_clean`` is the *ideal* covariance computed
+    analytically from only the K direct-path angles with a perfect array
+    and unit-power sources: ``R_clean = A_ideal @ A_ideal^H``.  It is the
+    paper's supervision target for L_eig / L_proj / L_dom / L_rec
+    (Almog & Weiss 2026 §IV "Composite loss").
+
+    Shape contract (multipath-aware)
+    --------------------------------
+    Let ``K`` = ``scene.n_sources`` and ``N`` = ``scene.num_multipath`` (0
+    if multipath is disabled).  Then:
+
+    * ``angles_rad`` is **always** ``[K]`` — the *direct-path* angles only.
+      This is the labelled ground truth for DoA estimation; multipath
+      replicas are not predicted by the model and must not appear here.
+    * ``angles_rad_multipath`` is ``[N]`` — the multipath replica AoAs,
+      drawn uniformly in ``[0, 2π)``.  Empty array if ``N == 0``.
+    * ``steering`` is ``[M, K+N]`` — the augmented steering matrix that
+      generated the corrupted snapshots (direct + multipath columns).
+    * ``source_signals`` is ``[K+N, T]`` — same row order as ``steering``.
+
+    Older callers that read ``result.angles_rad`` and assumed it had length
+    K+N when multipath was on were silently incorrect (it caused a
+    broadcasting crash in :class:`SceneDataset`).
+    """
+
+    snapshots: np.ndarray            # [M, T] complex64  (corrupted)
+    covariance: np.ndarray           # [M, M] complex64  (corrupted sample covariance)
+    covariance_clean: np.ndarray     # [M, M] complex64  (ideal A_ideal @ A_ideal^H)
+    steering: np.ndarray             # [M, K+N] complex64  (direct + multipath)
+    source_signals: np.ndarray       # [K+N, T] complex64  (direct + multipath)
+    noise: np.ndarray                # [M, T] complex64
+    angles_rad: np.ndarray           # [K] float64        (direct-path angles only)
+    angles_rad_multipath: np.ndarray  # [N] float64       (multipath AoAs; [] if N=0)
 
 
 class SceneRenderer:
@@ -183,9 +328,32 @@ class SceneRenderer:
         M, T = self.meta.M, self.meta.T
 
         # --- array calibration draws (per-scene so seed reproduces) --------
-        gain_err = 1.0 + (scene.gain_err_dB / 8.686) * rng.standard_normal(M)
-        phase_err = np.deg2rad(scene.phase_err_deg) * rng.standard_normal(M)
-        position_err = (scene.position_err_pct / 100.0) * rng.standard_normal(M)
+        # Distributions follow Almog & Weiss 2026 §II-C eqs. (21)-(23) and
+        # the legacy ``signalgen.array_processing`` implementation:
+        #   - g_n ∼ U[10^(-Δ/20), 10^(+Δ/20)]   (eq. 23, Δ = scene.gain_err_dB)
+        #   - φ_n ∼ U[-Φ, +Φ] degrees             (eq. 23, Φ = scene.phase_err_deg)
+        #   - ε_n ∼ N(0, σ_pos² · I_2)            (eq. 21, σ_pos = scene.position_err_pct/100 in λ)
+        # Previously these were Gaussians (gain/phase) and a 1-D fractional
+        # spacing perturbation (position) — see PAPER_FAITHFUL_DATASET.md
+        # bug-fix log entry "Imperfections aligned with paper §II-C".
+        if scene.gain_err_dB > 0.0:
+            gmin = 10.0 ** (-float(scene.gain_err_dB) / 20.0)
+            gmax = 10.0 ** (+float(scene.gain_err_dB) / 20.0)
+            gain_err = rng.uniform(gmin, gmax, size=M)
+        else:
+            gain_err = np.ones(M, dtype=np.float64)
+        if scene.phase_err_deg > 0.0:
+            phase_err = np.deg2rad(
+                rng.uniform(-float(scene.phase_err_deg),
+                            +float(scene.phase_err_deg), size=M)
+            )
+        else:
+            phase_err = np.zeros(M, dtype=np.float64)
+        if scene.position_err_pct > 0.0:
+            sigma_pos = float(scene.position_err_pct) / 100.0     # in wavelengths
+            position_err = rng.normal(0.0, sigma_pos, size=(M, 2))
+        else:
+            position_err = np.zeros((M, 2), dtype=np.float64)
 
         # --- direct-path steering -----------------------------------------
         K = int(scene.n_sources)
@@ -215,8 +383,12 @@ class SceneRenderer:
             A_full, angles_rad_full = A, angles_rad
 
         # --- mutual coupling applies to the full steering matrix -----------
+        # The paper-faithful coupling matrix has random per-diagonal jitter
+        # ``v_k ~ U[1-δ/2, 1+δ/2]``, so it consumes the same scene-seeded
+        # ``rng`` that drove the per-element calibration draws.  This keeps
+        # the whole imperfection state reproducible from ``scene.seed``.
         if scene.mutual_coupling != 0.0:
-            C = _mutual_coupling_matrix(M, float(scene.mutual_coupling))
+            C = _mutual_coupling_matrix(M, float(scene.mutual_coupling), rng=rng)
             A_full = C @ A_full
 
         # --- noise (set SNR against the *direct-path* unit-variance source) -
@@ -232,13 +404,48 @@ class SceneRenderer:
         X = A_full @ sources_full + noise           # [M, T] complex128
         Rxx = (X @ X.conj().T) / float(T)           # [M, M]
 
+        # --- paper supervision target: ideal covariance --------------------
+        # R_clean = A_ideal @ A_ideal^H computed from ONLY the K direct
+        # paths, with no calibration errors, no mutual coupling, and no
+        # multipath replicas.  Unit-power sources => P = I_K, so the
+        # ensemble form is just A_ideal A_ideal^H.  This is the paper's
+        # noise-free, error-free, multipath-free EVD target (Almog & Weiss
+        # §IV) and is what the trainer's L_rec / L_eig / L_proj / L_dom
+        # consume — *not* the corrupted Rxx above.
+        A_ideal = _steering_vector(
+            angles_rad,
+            M=M,
+            element_spacing_lambda=self.meta.element_spacing_lambda,
+            gain_err=np.ones(M, dtype=np.float64),
+            phase_err=np.zeros(M, dtype=np.float64),
+            position_err=np.zeros((M, 2), dtype=np.float64),   # 2-D, paper eq. 22
+        )
+        R_clean = A_ideal @ A_ideal.conj().T        # [M, M] Hermitian PSD, rank K
+
+        # --- split angles back into (direct, multipath) for the public API.
+        # ``angles_rad`` (the loop-scope variable) was always length K and
+        # corresponds to scene.angles_deg[:K]; ``angles_rad_full`` is K+N
+        # only when multipath is on, otherwise identical.  Honour the
+        # documented shape contract by exposing them separately so
+        # downstream consumers (especially SceneDataset.__getitem__) don't
+        # confuse multipath replica AoAs with ground-truth direct-path
+        # angles.  See bug report 2026-04-25 in
+        # docs/PAPER_FAITHFUL_TRAINING.md.
+        angles_rad_multipath = (
+            angles_rad_full[K:].astype(np.float64)
+            if angles_rad_full.shape[0] > K
+            else np.empty((0,), dtype=np.float64)
+        )
+
         return RenderResult(
             snapshots=X.astype(np.complex64),
             covariance=Rxx.astype(np.complex64),
+            covariance_clean=R_clean.astype(np.complex64),
             steering=A_full.astype(np.complex64),
             source_signals=sources_full.astype(np.complex64),
             noise=noise.astype(np.complex64),
-            angles_rad=angles_rad_full,
+            angles_rad=angles_rad.astype(np.float64),  # K direct angles only
+            angles_rad_multipath=angles_rad_multipath,
         )
 
     # --- legacy-faithful multipath branch ----------------------------------

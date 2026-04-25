@@ -1,0 +1,69 @@
+# --------------------------------------------------------------------------
+# Paper-faithful EVALUATION corpus (Almog & Weiss 2026 §IV).
+# --------------------------------------------------------------------------
+#
+# Companion to configs/data/paper_corpus.yaml.  Same scene parameters and
+# sampler settings, BUT with the evaluation SNR range [-20, +20] dB instead
+# of the training range [-10, +10] dB — matching the paper's explicit:
+#
+#     "SNR schedule: training sweeps SNR ∈ [-10, 10] dB; evaluation sweeps
+#      [-20, 20] dB."                                          (§IV, p.6)
+#
+# The paper also describes an "evaluation set construction (consistent
+# angles across SNR)" (§IV, p.6) where the geometry is fixed across SNR
+# levels and only the noise power changes.  That construction is *not*
+# expressible in the random-manifest format used here — it requires a
+# dedicated builder script.  See:
+#
+#     scripts/verify/run_classic_on_manifest.py --group-by snr_db
+#
+# for a close-enough analogue: it groups a uniformly-sampled SNR test set
+# into bins and reports per-bin RMSPE.  Use this manifest as its input.
+#
+# Usage:
+#     reconunet-generate --config configs/data/paper_corpus_eval.yaml
+#     reconunet-evaluate --manifest data/scenes/paper_eval/test.npy --eval ...
+# --------------------------------------------------------------------------
+
+manifest:
+  train_path: data/scenes/paper_eval/train.npy   # generated but unused at eval
+  val_path:   data/scenes/paper_eval/val.npy     # generated but unused at eval
+  test_path:  data/scenes/paper_eval/test.npy    # this is the file you want
+  # Smaller train/val (the eval generator only needs the test split, but the
+  # CLI insists on writing all three).
+  train_size:  1_000
+  val_size:      500
+  test_size:  50_000
+
+meta:
+  # Same array geometry as paper_corpus.yaml.
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+
+  # ---- evaluation SNR range — paper §IV ----------------------------------
+  snr_range_db:    [-20.0, 20.0]
+
+  version: "paper-eval-1.0"
+  notes: "Paper-faithful evaluation corpus (Almog & Weiss 2026 §IV, eval SNR sweep)."
+
+sampling:
+  # Identical sampler settings to the training corpus — same K range, same
+  # multipath, same imperfection preset.  ONLY snr_range_db changes.
+  array_errors: mild
+  k_choices: [1, 2, 3, 4]
+  min_separation_deg: 10.0
+  enable_multipath: true
+  max_paths: 7
+  num_multipath_components: null
+  multipath_distribution: uniform
+  mp_max_delay_factor: 10.0
+  modulation: NARROWBAND
+  # Different master seed so the eval set is disjoint from the train splits.
+  rng_seed: 20260421

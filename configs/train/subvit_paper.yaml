@@ -1,0 +1,67 @@
+# --------------------------------------------------------------------------
+# SubViT (DOA-ViT, Zhou et al.) — paper-faithful baseline training.
+# --------------------------------------------------------------------------
+#
+# Almog & Weiss 2026 §IV uses the same Adam schedule as for ReconUNet and
+# SubspaceNet (LR 1e-4, wd 1e-5, batch 2048, ReduceLROnPlateau f=0.7 p=5,
+# 300 epochs, early stop 25, grad clip 1.0).  This file replaces the legacy
+# AdamW + cosine schedule from configs/train/subvit.yaml so the three
+# baselines share an apples-to-apples training schedule.
+#
+# Companion to configs/train/reconunet_paper.yaml; see
+# docs/PAPER_FAITHFUL_TRAINING.md for the full audit.
+# --------------------------------------------------------------------------
+
+model:
+  name: subvit
+  adapter_class: reconunet.models.third_party.subvit_adapter.SubViTAdapter
+  init:
+    M: 8
+    K_max: 3
+    grid_size: 121
+    angle_range_deg: [-60.0, 60.0]
+    embed_dim: 256
+    depth: 6
+    num_heads: 8
+
+collate: subvit
+
+data:
+  config: configs/data/paper_corpus.yaml
+  # SubViT memory is heavier than the CNN baselines — the paper's batch=2048
+  # may not fit on a single GPU.  Drop to 512 and rely on accumulate-grad if
+  # exact batch=2048 is needed (the trainer doesn't accumulate yet — see
+  # docs/PAPER_FAITHFUL_TRAINING.md gap (c)).
+  batch_size: 512
+  num_workers: 8
+  pin_memory: true
+
+optim:
+  optimizer: adam                     # paper §IV (legacy used adamw)
+  lr: 1.0e-4                          # paper §IV (legacy used 3e-4)
+  weight_decay: 1.0e-5                # paper §IV (legacy used 5e-2)
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau           # paper §IV (legacy used cosine)
+    mode: min
+    factor: 0.7
+    patience: 5
+    min_lr: 1.0e-6
+
+loss:
+  bce_weight:         1.0
+  peak_sharpness:     0.1
+  topk_rmspel_weight: 0.3
+
+train:
+  epochs: 300                         # paper §IV (legacy: 80)
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/subvit_paper/checkpoints/
+  tensorboard_dir: experiments/runs/subvit_paper/tb/
+  early_stopping_patience: 25
+  amp: true
+
+eval:
+  config: configs/eval/evaluation_config.yaml
+
+seed: 20260420
