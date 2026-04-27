@@ -43,9 +43,18 @@ wandb/
 
 # ---- Experiment artifacts (large, regenerable) ----
 # Everything under experiments/runs/ is training output and must never enter
-# git.  Keep experiments/paper_figures/ because final plots are not
-# regenerable without re-running the whole pipeline.
-experiments/runs/
+# git, with one exception: the canonical paper-results EVD-UNet checkpoint
+# (evd_unet_denoising_model_20250929_015132.pth) is tracked because the
+# analysis scripts in scripts/analysis/ load it by path.  Keep
+# experiments/paper_figures/ because final plots are not regenerable without
+# re-running the whole pipeline.
+!experiments/runs/
+experiments/runs/*
+!experiments/runs/legacy/
+experiments/runs/legacy/*
+!experiments/runs/legacy/checkpoints/
+experiments/runs/legacy/checkpoints/*
+!experiments/runs/legacy/checkpoints/evd_unet_denoising_model_20250929_015132.pth
 experiments/legacy_results/
 data/rendered/
 data/cache/
@@ -66,6 +75,8 @@ notebooks/exploration/*.npy
 *.pt
 *.ckpt
 *.safetensors
+# Exception: canonical paper-results EVD-UNet weights (see experiments/runs/ block above).
+!experiments/runs/legacy/checkpoints/evd_unet_denoising_model_20250929_015132.pth
 
 # ---- OS ----
 Thumbs.db
