@@ -64,6 +64,16 @@ def sum_of_diags_torch(matrix: torch.Tensor) -> torch.Tensor:
     return torch.stack(diag_sum, dim=0)
 
 
+def sum_of_diags_batched(matrix: torch.Tensor) -> torch.Tensor:
+    """Batched diagonal sums for ``[B, N, N]`` → ``[B, 2N-1]``."""
+    B, N, _ = matrix.shape
+    n_diags = 2 * N - 1
+    result = []
+    for offset in range(-(N - 1), N):
+        result.append(torch.diagonal(matrix, offset=offset, dim1=-2, dim2=-1).sum(-1))
+    return torch.stack(result, dim=-1)  # [B, 2N-1]
+
+
 def find_roots_torch(coefficients: torch.Tensor) -> torch.Tensor:
     """Solve for the roots of a polynomial with the given *coefficients*.
 
@@ -75,6 +85,21 @@ def find_roots_torch(coefficients: torch.Tensor) -> torch.Tensor:
     A[1:, :-1] = torch.eye(n - 1, dtype=coefficients.dtype, device=coefficients.device)
     A[0, :] = -coefficients[1:] / coefficients[0]
     return torch.linalg.eigvals(A)
+
+
+def find_roots_batched(coefficients: torch.Tensor) -> torch.Tensor:
+    """Batched polynomial root-finding via companion matrix eigvals.
+
+    ``coefficients`` has shape ``[B, D+1]``; returns ``[B, D]`` complex roots.
+    """
+    B, D1 = coefficients.shape
+    n = D1 - 1
+    eye = torch.eye(n - 1, dtype=coefficients.dtype, device=coefficients.device)
+    eye = eye.unsqueeze(0).expand(B, -1, -1)                   # [B, n-1, n-1]
+    A = torch.zeros(B, n, n, dtype=coefficients.dtype, device=coefficients.device)
+    A[:, 1:, :-1] = eye
+    A[:, 0, :] = -coefficients[:, 1:] / coefficients[:, :1]    # broadcast c0
+    return torch.linalg.eigvals(A)                              # [B, n]
 
 
 def gram_diagonal_overload(
@@ -104,57 +129,339 @@ def gram_diagonal_overload(
 # Differentiable sub-space methods --------------------------------------------
 # -----------------------------------------------------------------------------
 
+# Numerical-stability constants for the differentiable eigendecomposition.
+_EIGH_REL_LOAD = 1e-6        # relative diagonal load (× mean |diag(R)|)
+_EIGH_ABS_LOAD = 1e-9        # absolute floor so an all-zero R is still PD
+_EIGH_MAX_RETRIES = 4        # escalate the load ×100 each retry on failure
+_EIGH_BACKWARD_DAMP = 1e-6   # δ in the damped reciprocal  diff / (diff² + δ²)
+
+# Count of eigh inputs that had to be sanitised (non-finite entries replaced).
+# Surfaced via a rate-limited warning so an isolated bad sample in 2M is quiet
+# but a genuine training divergence (every batch non-finite) is loud.
+_EIGH_NONFINITE_COUNT = 0
+
+
+def _warn_nonfinite_eigh(n_bad: int) -> None:
+    """Rate-limited warning when an eigh input contains NaN/Inf.
+
+    Warns on the 1st, 10th, 100th, … occurrence so a rare degenerate covariance
+    stays quiet while a runaway divergence (sanitisation firing every batch)
+    becomes impossible to miss in the log.
+    """
+    global _EIGH_NONFINITE_COUNT
+    _EIGH_NONFINITE_COUNT += 1
+    c = _EIGH_NONFINITE_COUNT
+    if c == 1 or c % 10 == 0 and c < 100 or c % 100 == 0:
+        warnings.warn(
+            f"_robust_hermitian_eigh: sanitised a non-finite covariance "
+            f"({n_bad} bad entries); occurrence #{c}. Isolated events are "
+            f"harmless (degenerate sample); a steadily rising count signals "
+            f"training divergence.",
+            RuntimeWarning, stacklevel=2,
+        )
+
+
+def _eigh_qr_fallback(loaded: torch.Tensor):
+    """Per-matrix eigendecomposition for Hermitian inputs that defeat LAPACK's
+    batched divide-and-conquer solver (``heevd`` — "failed to converge … too many
+    repeated eigenvalues", error code 7).
+
+    A *uniform* diagonal load cannot rescue that failure mode: it shifts every
+    eigenvalue equally, so the eigenvalue **gaps** (what the divide-and-conquer
+    routine struggles with on clustered spectra) are untouched.  This fallback
+    instead retries each matrix individually with torch's eigh and, for any that
+    still fail, the globally-convergent QR driver (``heev``/``syev`` via SciPy,
+    ``driver='ev'``), which always converges for a Hermitian matrix.  Slow but
+    only reached on the rare offending batch, so the throughput cost is nil.
+
+    ``loaded`` is the already-diagonal-loaded CPU ``complex128`` tensor, shape
+    ``[..., N, N]``.  Returns ``(eigenvalues_ascending, U)`` matching
+    :func:`torch.linalg.eigh`'s convention and dtypes.
+    """
+    import scipy.linalg as _sla                      # lazy: only on the rare path
+
+    N = loaded.shape[-1]
+    flat = loaded.reshape(-1, N, N)
+    # Belt-and-suspenders: the primary sanitisation lives in
+    # _robust_hermitian_eigh, but guard here too so a direct caller can't hit
+    # scipy's "array must not contain infs or NaNs" ValueError.
+    if not torch.isfinite(flat).all():
+        flat = torch.complex(
+            torch.nan_to_num(flat.real, nan=0.0, posinf=0.0, neginf=0.0),
+            torch.nan_to_num(flat.imag, nan=0.0, posinf=0.0, neginf=0.0),
+        )
+    w_out = torch.empty(flat.shape[0], N, dtype=torch.float64)
+    v_out = torch.empty_like(flat)
+    for i in range(flat.shape[0]):
+        A = flat[i]
+        try:
+            w_i, v_i = torch.linalg.eigh(A)          # per-matrix: isolates the bad one
+        except RuntimeError:                         # incl. torch._C._LinAlgError
+            # QR iteration is globally convergent for Hermitian A (UPLO='L' to
+            # match torch.linalg.eigh, which reads the lower triangle).
+            w_np, v_np = _sla.eigh(A.numpy(), driver="ev", lower=True)
+            w_i = torch.from_numpy(np.ascontiguousarray(w_np))
+            v_i = torch.from_numpy(np.ascontiguousarray(v_np))
+        w_out[i] = w_i.to(torch.float64)
+        v_out[i] = v_i.to(torch.complex128)
+    return w_out.reshape(*loaded.shape[:-1]), v_out.reshape(loaded.shape)
+
+
+def _robust_hermitian_eigh(R: torch.Tensor):
+    """Eigendecomposition of (a batch of) Hermitian matrices, robust to the
+    degenerate / ill-conditioned inputs produced early in training.
+
+    Computed on CPU in double precision — LAPACK is both faster and far more
+    robust than cuSOLVER for the small (e.g. 8×8) matrices SubspaceNet emits.
+    A per-sample **uniform** diagonal load ``c·I`` is added first; because a
+    uniform shift moves every eigenvalue equally it leaves the eigenvectors —
+    and therefore the downstream noise-subspace projector, polynomial roots and
+    DoA estimates — exactly unchanged, so the load may be as large as numerical
+    robustness requires *for free*.  On failure the load is escalated and the
+    decomposition retried (this is what prevents the historic
+    ``linalg.eigh failed to converge`` crash on near-degenerate covariances).
+
+    ``R`` has shape ``[..., N, N]``.  Returns ``(eigenvalues, U)`` with
+    eigenvalues **ascending** (LAPACK convention), shapes ``[..., N]`` / ``[..., N, N]``.
+    """
+    N = R.shape[-1]
+    R_cpu = R.detach().cpu().to(torch.complex128)
+    # Defensive sanitisation: a pathological sample (fully-coherent multipath,
+    # or a transient training instability) can yield a covariance with NaN/Inf
+    # entries.  LAPACK/scipy raise an *uncaught* ValueError on non-finite input
+    # ("array must not contain infs or NaNs"), which historically killed
+    # multi-day runs over a single bad matrix in 2M.  Replace non-finite entries
+    # with 0 (real & imag separately — torch.nan_to_num rejects complex) so the
+    # diagonal load below makes the matrix well-posed and the eigh degrades
+    # gracefully.  No-op on the overwhelmingly common all-finite path.
+    if not torch.isfinite(R_cpu).all():
+        _warn_nonfinite_eigh(int((~torch.isfinite(R_cpu)).sum()))
+        R_cpu = torch.complex(
+            torch.nan_to_num(R_cpu.real, nan=0.0, posinf=0.0, neginf=0.0),
+            torch.nan_to_num(R_cpu.imag, nan=0.0, posinf=0.0, neginf=0.0),
+        )
+    eye = torch.eye(N, dtype=torch.complex128)
+    # Per-sample scale = mean magnitude of the (real) diagonal of R.
+    diag = R_cpu.diagonal(dim1=-2, dim2=-1).real             # [..., N]
+    scale = diag.abs().mean(dim=-1)                          # [...]
+    load = _EIGH_REL_LOAD * scale + _EIGH_ABS_LOAD           # [...]
+    for attempt in range(_EIGH_MAX_RETRIES + 1):
+        loaded = R_cpu + load[..., None, None] * eye
+        try:
+            return torch.linalg.eigh(loaded)
+        except RuntimeError:                                 # incl. torch._C._LinAlgError
+            if attempt == _EIGH_MAX_RETRIES:
+                # Escalating the uniform load can't fix a divide-and-conquer
+                # convergence failure on clustered/repeated eigenvalues, so a
+                # plain re-raise here is what historically killed multi-hour
+                # runs (one degenerate covariance in 2M samples).  Fall back
+                # per-matrix to a globally-convergent QR solver instead.
+                return _eigh_qr_fallback(loaded)
+            load = load * 100.0
+
+
+class _DiffNoiseProjectorBatched(torch.autograd.Function):
+    """Batched differentiable noise-subspace projector ``F = Un @ Un^H``.
+
+    Forward: ``torch.linalg.eigh`` on CPU (LAPACK, robust) → select noise
+    eigenvectors → projector.  CPU is both faster and more robust than
+    cuSOLVER for small (8×8) Hermitian matrices.
+    Backward: analytical spectral-perturbation gradient (fully batched, GPU).
+
+    Input ``R`` has shape ``[B, N, N]`` (batch of Hermitian matrices).
+    Returns ``F`` of the same shape.
+    """
+
+    @staticmethod
+    def forward(ctx, R: torch.Tensor, n_signal: int) -> torch.Tensor:
+        orig_device = R.device
+        # Robust CPU/double eigh with per-sample relative diagonal loading and
+        # retry-on-failure (see :func:`_robust_hermitian_eigh`).  Returns
+        # ascending eigenvalues; flip to descending so columns [:M] are signal.
+        eigenvalues_cpu, U_cpu = _robust_hermitian_eigh(R)
+        # Keep eigenvalues in the real dtype matching R (float32 for the
+        # production complex64 path; float64 when called in double precision,
+        # e.g. autograd gradcheck).  Flip ascending→descending.
+        _real_dtype = torch.float64 if R.dtype == torch.complex128 else torch.float32
+        eigenvalues = eigenvalues_cpu.to(device=orig_device, dtype=_real_dtype).flip(-1)
+        U = U_cpu.to(dtype=R.dtype, device=orig_device).flip(-1)
+        ctx.save_for_backward(eigenvalues, U)
+        ctx.n_signal = n_signal
+        Un = U[:, :, n_signal:]                         # [B, N, N-M]
+        return Un @ Un.conj().mT                        # [B, N, N]
+
+    @staticmethod
+    def backward(ctx, grad_F: torch.Tensor):
+        eigenvalues, U = ctx.saved_tensors              # [B,N], [B,N,N]
+        M = ctx.n_signal
+
+        # F = Un Un^H is structurally Hermitian, so only the Hermitian part of
+        # the incoming cotangent affects the true gradient (dF is Hermitian).
+        # Symmetrise so the VJP is correct for any upstream cotangent.
+        grad_F = 0.5 * (grad_F + grad_F.conj().mT)
+
+        G = U.conj().mT @ grad_F @ U                   # [B, N, N]  (Hermitian)
+
+        lam = eigenvalues                               # [B, N]
+        diffs = lam.unsqueeze(-1) - lam.unsqueeze(-2)   # [B, N, N]; diffs[i,j]=λ_i-λ_j
+        # Damped reciprocal in place of a hard floor: bounded by 1/(2δ) and
+        # smoothly → 0 as eigenvalues collapse, so near-degenerate spectra no
+        # longer blow up the gradient.
+        recip = diffs / (diffs * diffs + _EIGH_BACKWARD_DAMP ** 2)
+
+        # VJP of the noise-subspace projector F = Un Un^H.  Only the
+        # signal↔noise cross-terms survive (intra-subspace rotations cancel):
+        #   C[i,j] = G[i,j] / (λ_i - λ_j)   for i∈noise, j∈signal.
+        # The gradient w.r.t. a Hermitian R must itself be Hermitian, so the
+        # signal-row/noise-col block is the conjugate-transpose of the
+        # noise-row/signal-col block — completing it that way is what makes the
+        # analytic gradient match finite differences (see gradcheck test).
+        coeff = torch.zeros_like(G)
+        coeff[:, M:, :M] = G[:, M:, :M] * recip[:, M:, :M]
+        coeff[:, :M, M:] = coeff[:, M:, :M].conj().transpose(-2, -1)
+
+        return U @ coeff @ U.conj().mT, None
+
+
+def _noise_projector_batched(R: torch.Tensor, n_signal: int) -> torch.Tensor:
+    """Phase-safe differentiable noise projector (batched)."""
+    return _DiffNoiseProjectorBatched.apply(R, n_signal)
+
+
+# Keep single-sample wrapper for backward compat / esprit
+def _noise_projector(R: torch.Tensor, n_signal: int) -> torch.Tensor:
+    """Phase-safe differentiable noise projector ``F = Un @ Un^H``."""
+    return _noise_projector_batched(R.unsqueeze(0), n_signal).squeeze(0)
+
+
+class _DiffEspritPhi(torch.autograd.Function):
+    """Differentiable ESPRIT shift-invariance matrix ``Φ = pinv(Us↑) @ Us↓``.
+
+    Like :class:`_DiffNoiseProjector`, Φ is phase-invariant (the column
+    phases of Us cancel between pinv and the product), so its gradient
+    w.r.t. R is well-defined even though individual eigenvectors are not.
+    """
+
+    @staticmethod
+    def forward(ctx, R: torch.Tensor, n_signal: int) -> torch.Tensor:
+        orig_device = R.device
+        # Robust CPU/double eigh (single Hermitian matrix here); see
+        # :func:`_robust_hermitian_eigh`.  Flip to descending.
+        eigenvalues_cpu, U_cpu = _robust_hermitian_eigh(R)
+        # Keep eigenvalues in the real dtype matching R (float32 for the
+        # production complex64 path; float64 when called in double precision,
+        # e.g. autograd gradcheck).  Flip ascending→descending.
+        _real_dtype = torch.float64 if R.dtype == torch.complex128 else torch.float32
+        eigenvalues = eigenvalues_cpu.to(device=orig_device, dtype=_real_dtype).flip(-1)
+        U = U_cpu.to(dtype=R.dtype, device=orig_device).flip(-1)
+        Us = U[:, :n_signal]
+        Us_upper, Us_lower = Us[:-1], Us[1:]
+        phi = torch.linalg.pinv(Us_upper) @ Us_lower
+        ctx.save_for_backward(eigenvalues, U, phi)
+        ctx.n_signal = n_signal
+        return phi
+
+    @staticmethod
+    def backward(ctx, grad_phi: torch.Tensor):
+        # NOTE: this backward is APPROXIMATE — it omits the intra-signal
+        # eigenvector-coupling block (k, j both in the signal subspace) and uses
+        # a simplified pseudo-inverse derivative.  It is good enough to train the
+        # secondary ESPRIT head but is not finite-difference-exact (see the
+        # ``xfail`` gradcheck in tests/unit/test_subspacenet_correctness.py).
+        # root_music (the paper default) has an exact, validated backward.
+        eigenvalues, U, phi = ctx.saved_tensors
+        M = ctx.n_signal
+        N = eigenvalues.shape[-1]
+
+        Us = U[:, :M]
+        Us_upper = Us[:-1]
+        pinv_upper = torch.linalg.pinv(Us_upper)
+
+        # dL/dUs_lower = pinv_upper^H @ grad_phi
+        grad_Us_lower = pinv_upper.conj().T @ grad_phi
+        # dL/dUs_upper = -pinv_upper^H @ grad_phi @ Us_lower^H @ pinv_upper^H
+        #              = -grad_Us_lower @ (Us_lower^H @ pinv_upper^H)
+        Us_lower = Us[1:]
+        grad_Us_upper = -grad_Us_lower @ Us_lower.conj().T @ pinv_upper.conj().T
+
+        # Assemble dL/dUs by adding the upper/lower contributions.
+        grad_Us = torch.zeros_like(Us)
+        grad_Us[:-1] += grad_Us_upper
+        grad_Us[1:] += grad_Us_lower
+
+        # Now propagate dL/dUs → dL/dR via spectral perturbation.
+        # G_full = U^H (dL/dU_full) where dL/dU_full has signal columns only.
+        grad_U_full = torch.zeros_like(U)
+        grad_U_full[:, :M] = grad_Us
+        G = U.conj().T @ grad_U_full
+
+        lam = eigenvalues
+        diffs = lam.unsqueeze(-1) - lam.unsqueeze(-2)
+        # Damped reciprocal (bounded, → 0 on degeneracy); see _DiffNoiseProjectorBatched.
+        recip = diffs / (diffs * diffs + _EIGH_BACKWARD_DAMP ** 2)
+
+        coeff = torch.zeros_like(G)
+        # Signal-noise cross terms for dU_signal/dR.
+        coeff[:M, M:] = G[:M, M:] * recip[:M, M:]
+        coeff[M:, :M] = G[M:, :M] * recip[M:, :M]
+
+        return U @ coeff @ U.conj().T, None
+
+
+def _esprit_phi(R: torch.Tensor, n_signal: int) -> torch.Tensor:
+    """Phase-safe differentiable ESPRIT Φ matrix."""
+    return _DiffEspritPhi.apply(R, n_signal)
+
+
 def root_music(Rz: torch.Tensor, M: int, batch_size: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Differentiable Root-MUSIC implementation (narrow-band ULA, ideal case)."""
-    # --- Compute DoA estimates using Tri4Net RootMUSIC formulation ---
-    element_spacing = 0.5  # wavelength units (same default as Tri4Net classic)
+    """Differentiable Root-MUSIC implementation (narrow-band ULA, ideal case).
 
-    doa_batches: list[torch.Tensor] = []
-    doa_all_batches: list[torch.Tensor] = []
+    Fully batched: one eigh call, one eigvals call, and a **vectorised**
+    root-selection (no per-sample Python loop) — the M roots inside the unit
+    circle and closest to it are picked with a batched argsort/gather, which is
+    what makes large-corpus (2M-sample) training tractable.
+    """
+    element_spacing = 0.5  # wavelength units
+    N = Rz.shape[-1]
+    k_d = element_spacing * 2 * np.pi
+    c = N / 2 if N % 2 == 0 else (N - 1) / 2
+    _rad2deg = 180.0 / np.pi
 
-    for b in range(batch_size):
-        R = Rz[b]
+    # Batched noise projector — single eigh call for whole batch
+    F_batch = _noise_projector_batched(Rz, M)               # [B, N, N]
 
-        # Eigendecomposition (use eigh for Hermitian matrices)
-        eigenvalues, eigenvectors = torch.linalg.eigh(R)
-        sort_idx = torch.argsort(eigenvalues).flip(0)  # No need for abs() since eigenvalues are real
-        Un = eigenvectors[:, sort_idx][:, M:]  # noise sub-space (N x (N-M))
+    # Batched diagonal sums → polynomial coefficients
+    coeffs_batch = sum_of_diags_batched(F_batch)             # [B, 2N-1]
 
-        # Build polynomial coefficients from noise sub-space
-        F = Un @ Un.conj().T
-        coeffs = sum_of_diags_torch(F)
-        roots = find_roots_torch(coeffs)
+    # Batched polynomial root-finding — single eigvals call
+    roots_batch = find_roots_batched(coeffs_batch)           # [B, 2N-2]
 
-        # Shift roots as in Tri4Net to account for array center
-        N = R.shape[0]
-        c = N / 2 if N % 2 == 0 else (N - 1) / 2
-        k_d = element_spacing * 2 * np.pi
-        phase = torch.tensor(1j * k_d * c, dtype=roots.dtype, device=roots.device)
-        roots_shifted = roots * torch.exp(phase)
+    # Shift roots for array center
+    phase = torch.tensor(1j * k_d * c, dtype=roots_batch.dtype, device=roots_batch.device)
+    roots_shifted = roots_batch * torch.exp(phase)           # [B, 2N-2]
 
-        # Helper for degree conversion (torch lacks rad2deg before v1.8)
-        _rad2deg = 180.0 / np.pi
+    # All roots → DoA (for debugging / spectrum)
+    roots_angles_all = torch.angle(roots_shifted) / k_d
+    roots_angles_all = torch.clamp(roots_angles_all, min=-1.0, max=1.0)
+    doa_all = torch.acos(-roots_angles_all) * _rad2deg       # [B, 2N-2]
 
-        # All roots → provisional DoAs (for spectrum analysis / debugging)
-        roots_angles_all = torch.angle(roots_shifted) / k_d  # sin(theta) style quantity
-        # Clamp to valid range for arccos
-        roots_angles_all = torch.clamp(roots_angles_all, min=-1.0, max=1.0)
-        doa_all = torch.acos(-roots_angles_all) * _rad2deg
-        doa_all_batches.append(doa_all)
-
-        # Sort by distance to unit circle and keep those inside
-        roots_sorted = roots_shifted[torch.argsort(torch.abs(torch.abs(roots_shifted) - 1.0))]
-        roots_inside = roots_sorted[(torch.abs(roots_sorted) - 1) < 0][:M]
-
-        roots_angles = torch.angle(roots_inside) / k_d
-        roots_angles = torch.clamp(roots_angles, min=-1.0, max=1.0)
-        doa_pred = torch.acos(-roots_angles) * _rad2deg  # degrees
-        doa_batches.append(doa_pred)
+    # Vectorised root selection (replaces the per-sample Python loop): for each
+    # sample pick the M roots INSIDE the unit circle and closest to it.  Score
+    # inside roots by their distance to the circle and push outside roots to +inf
+    # so the M smallest scores are exactly "inside & closest" — identical to the
+    # old "sort-by-distance → keep-inside → take-M" logic, but fully batched.
+    mag = torch.abs(roots_shifted)                            # [B, 2N-2]
+    dist = torch.abs(mag - 1.0)                               # distance to unit circle
+    inf = torch.full_like(dist, float("inf"))
+    score = torch.where(mag < 1.0, dist, inf)                 # [B, 2N-2]
+    sel_idx = torch.argsort(score, dim=-1)[:, :M]             # [B, M]
+    # Gather the per-root DoA (real, differentiable; same angle→acos map as doa_all).
+    doa_pred = torch.gather(doa_all, 1, sel_idx)              # [B, M]
 
     return (
-        torch.stack(doa_batches, dim=0),
-        torch.stack(doa_all_batches, dim=0),
-        roots,  # return last roots for debugging
+        doa_pred,
+        doa_all,
+        roots_batch[-1],  # last sample's roots for debugging
     )
 
 
@@ -163,11 +470,8 @@ def esprit(Rz: torch.Tensor, M: int, batch_size: int) -> torch.Tensor:
     doa_batches = []
     for b in range(batch_size):
         R = Rz[b]
-        eigenvalues, eigenvectors = torch.linalg.eigh(R)
-        sort_idx = torch.argsort(eigenvalues).flip(0)  # No need for abs() since eigenvalues are real
-        Us = eigenvectors[:, sort_idx][:, :M]  # signal sub-space
-        Us_upper, Us_lower = Us[:-1], Us[1:]
-        phi = torch.linalg.pinv(Us_upper) @ Us_lower
+        # Differentiable ESPRIT Phi via custom autograd Function.
+        phi = _esprit_phi(R, M)
         phi_eigs = torch.linalg.eigvals(phi)  # Only eigenvalues, avoids eigenvector gradient issues
         angles = torch.angle(phi_eigs)
         doa_batches.append(-torch.arcsin(angles / np.pi))
@@ -241,7 +545,20 @@ class DeepRootMUSIC(nn.Module):
 
 
 class SubspaceNet(nn.Module):
-    """Generalised subspace-method network supporting Root-MUSIC or ESPRIT."""
+    """Generalised subspace-method network supporting Root-MUSIC or ESPRIT.
+
+    .. deprecated::
+        The canonical SubspaceNet used for the paper comparison is the **upstream
+        submodule** model (``third_party/subspacenet/src/models.py::SubspaceNet``),
+        instantiated and wrapped by
+        :class:`reconunet.models.third_party.subspacenet_adapter.SubspaceNetAdapter`
+        (which monkey-patches in the differentiable :func:`root_music` / :func:`esprit`
+        heads from this module).  This local re-implementation is retained only for
+        the :class:`ModelRegistry` / legacy training-example paths and must not drift
+        from upstream — prefer the adapter.  Do **not** add new behaviour here; the
+        reusable pieces (``root_music``, ``esprit``, the autograd ``Function``\\ s and
+        ``gram_diagonal_overload``) live at module scope and are shared with the adapter.
+    """
 
     def __init__(self, tau: int, M: int, diff_method: str = "root_music"):
         super().__init__()

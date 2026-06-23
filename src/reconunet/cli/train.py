@@ -161,8 +161,12 @@ class _AdapterModule(nn.Module):
         # under batch["input"].  Pass it through to the adapter.
         prepped = batch["input"]
         targets = batch.get("angles_rad")
-        out = self.adapter.forward(self._inner, prepped, targets=targets,
-                                   meta=self._meta_dict)
+        # Thread the per-sample source count so adapters that support variable K
+        # (e.g. SubspaceNet) estimate exactly K_true angles per sample.
+        meta = dict(self._meta_dict)
+        if batch.get("n_sources") is not None:
+            meta["n_sources"] = batch["n_sources"]
+        out = self.adapter.forward(self._inner, prepped, targets=targets, meta=meta)
         return out
 
 
@@ -297,13 +301,25 @@ def _compute_loss_adapter(
         return loss, {"loss": float(loss.detach())}
 
     # ``angles_true`` is padded to K_MAX with NaN; slice to the prediction
-    # width (assumes uniform k per batch, which holds for k_choices=[K]).
+    # width.  When k_choices contains multiple values (e.g. [1,2,3,4]) some
+    # entries will be NaN — mask them out so they don't poison the loss.
     K = out.angles_pred.shape[-1]
     angles_true = angles_true[..., :K]
     # Periodic RMSPE in radians — direct drop-in for training loss.
-    diff = out.angles_pred.sort(dim=-1).values - angles_true.sort(dim=-1).values
+    # torch.sort pushes NaN to the end (ascending), so valid true angles
+    # occupy the first K_true positions and pair with the K_true smallest
+    # predicted angles.
+    pred_sorted = out.angles_pred.sort(dim=-1).values
+    true_sorted = angles_true.sort(dim=-1).values
+    valid = ~torch.isnan(true_sorted)
+    # Replace NaN with 0 so the autograd graph never sees NaN.
+    true_clean = torch.where(valid, true_sorted, torch.zeros_like(true_sorted))
+    pred_clean = torch.where(valid, pred_sorted, torch.zeros_like(pred_sorted))
+    diff = pred_clean - true_clean
     wrapped = (diff + math.pi / 2) % math.pi - math.pi / 2
-    mse = (wrapped ** 2).mean()
+    sq = wrapped ** 2
+    n_valid = valid.sum().clamp(min=1)
+    mse = sq.sum() / n_valid
     weight = float(loss_cfg.get("rmspel_weight", 1.0))
     loss = weight * torch.sqrt(mse + 1e-12)
     return loss, {"loss": float(loss.detach()), "rmspe_rad": float(torch.sqrt(mse).detach())}
@@ -461,20 +477,101 @@ def _extract_pred_angles(out: Any, batch: dict[str, Any]) -> torch.Tensor | None
     if isinstance(out, dict) and "angles_pred" in out:
         return out["angles_pred"]
     # Native EVDUNet-style output: derive angles from reconstructed covariance
-    # via Root-MUSIC so val_rmspe reports a real number.  Requires uniform K
-    # across the batch (holds for k_choices=[K]); root_music returns degrees
-    # in [0°, 180°] (acos-of-sin convention), so we subtract 90° and convert
-    # to radians to match the BaselineOutput.angles_pred convention.
+    # via Root-MUSIC so val_rmspe reports a real number.  Handles variable K
+    # per sample (k_choices=[1,2,3,4]) by grouping samples by their true K
+    # and calling root_music per group.  Returns [B, K_max] with NaN padding.
     if isinstance(out, dict) and "K_recon" in out:
         from reconunet.models.deep_learning.subspace_models import root_music
         K_recon = out["K_recon"]
-        angles_true = batch["angles_rad"]
-        K = int((~torch.isnan(angles_true[0])).sum().item())
-        if K == 0:
+        n_sources = batch["n_sources"]  # [B] int tensor
+        B = K_recon.shape[0]
+        K_max = int(n_sources.max().item())
+        if K_max == 0:
             return None
-        angles_deg, _, _ = root_music(K_recon, K, K_recon.shape[0])
-        return torch.deg2rad(angles_deg - 90.0)
+        angles_out = torch.full((B, K_max), float('nan'))
+        _logged_once = False
+        for k in range(1, K_max + 1):
+            mask = (n_sources == k)
+            if not mask.any():
+                continue
+            try:
+                K_recon_k = K_recon[mask].detach().cpu()
+                ang_deg, _, _ = root_music(K_recon_k, k, int(mask.sum().item()))
+                angles_out[mask, :k] = torch.deg2rad(ang_deg[:, :k] - 90.0)
+            except Exception as exc:
+                if not _logged_once:
+                    LOG.warning("root_music failed (k=%d): %s", k, exc)
+                    _logged_once = True
+        return angles_out
     return None
+
+
+def _resume_state(resume_from, project_root, model, optim, sched, ckpt_dir,
+                  best_val, stale, history):
+    """Load a checkpoint and return ``(start_epoch, best_val, stale, history)``.
+
+    Two checkpoint formats are supported:
+
+    * **Full state** (new format, written by this trainer since the resume
+      feature landed): restores model + optimizer + scheduler + best_val +
+      stale exactly, so the resumed run is a faithful continuation.
+    * **Weights-only** (legacy ``last.pt`` = ``{model, epoch, cfg}``):
+      *warm-start* — the model weights continue from the saved epoch, but the
+      optimizer (Adam moments) and LR scheduler are re-initialised because
+      their state was never saved.  ``best_val`` / ``stale`` are recovered
+      from the sibling ``best.pt`` so best-checkpoint tracking and the
+      early-stopping countdown carry over correctly.
+    """
+    ckpt_path = Path(resume_from)
+    if not ckpt_path.is_absolute():
+        ckpt_path = project_root / ckpt_path
+    if not ckpt_path.is_file():
+        raise FileNotFoundError(f"--resume checkpoint not found: {ckpt_path}")
+    ck = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    target = model._inner if hasattr(model, "_inner") else model
+    target.load_state_dict(ck["model"])
+    completed = int(ck.get("epoch", 0))
+    start_epoch = completed + 1
+    LOG.info("Resuming from %s — completed epoch %d, continuing at epoch %d.",
+             ckpt_path, completed, start_epoch)
+
+    if ck.get("optim") is not None:
+        optim.load_state_dict(ck["optim"])
+        LOG.info("Restored optimizer state (exact resume).")
+    else:
+        LOG.info("No optimizer state in checkpoint — Adam re-initialised "
+                 "(warm-start from weights only).")
+    if sched is not None and ck.get("sched") is not None:
+        sched.load_state_dict(ck["sched"])
+        LOG.info("Restored LR-scheduler state.")
+
+    if ck.get("best_val") is not None:
+        best_val = float(ck["best_val"])
+        stale = int(ck.get("stale", 0))
+        LOG.info("Restored best_val=%.4f, stale=%d.", best_val, stale)
+    else:
+        best_path = ckpt_dir / "best.pt"
+        if best_path.is_file():
+            bk = torch.load(best_path, map_location="cpu", weights_only=False)
+            if bk.get("val_loss") is not None:
+                best_val = float(bk["val_loss"])
+                best_epoch = int(bk.get("epoch", 0))
+                stale = max(0, completed - best_epoch)
+                LOG.info("Recovered best_val=%.4f (epoch %d) from best.pt; "
+                         "stale=%d — patience countdown continues.",
+                         best_val, best_epoch, stale)
+
+    hist_path = ckpt_dir / "history.json"
+    if hist_path.is_file():
+        try:
+            prior = json.load(hist_path.open())
+            if isinstance(prior, list):
+                history = prior
+                LOG.info("Loaded %d prior history rows from history.json.",
+                         len(history))
+        except Exception:                                    # pragma: no cover
+            pass
+    return start_epoch, best_val, stale, history
 
 
 def train_loop(cfg: dict, project_root: Path) -> dict:
@@ -523,8 +620,21 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
     patience = int(cfg["train"].get("early_stopping_patience", 10**9))
     stale = 0
     history = []
+    start_epoch = 1
 
-    epoch_bar = tqdm(range(1, epochs + 1), desc="epochs", unit="epoch", leave=True)
+    # ---- optional resume (warm-start or exact, see _resume_state) --------
+    resume_from = cfg["train"].get("resume_from")
+    if resume_from:
+        start_epoch, best_val, stale, history = _resume_state(
+            resume_from, project_root, model, optim, sched, ckpt_dir,
+            best_val, stale, history,
+        )
+        if start_epoch > epochs:
+            LOG.warning("Resume epoch %d exceeds train.epochs=%d; nothing to do.",
+                        start_epoch, epochs)
+
+    epoch_bar = tqdm(range(start_epoch, epochs + 1), desc="epochs",
+                     unit="epoch", leave=True)
     for epoch in epoch_bar:
         model.train()
         t0 = time.time()
@@ -532,6 +642,7 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
         n_batches = 0
         train_bar = tqdm(train_loader, desc=f"ep {epoch:>3}/{epochs} train",
                          unit="batch", leave=False)
+        nan_skips = 0
         for i, batch in enumerate(train_bar):
             batch = _to_device(batch, device)
             optim.zero_grad(set_to_none=True)
@@ -541,13 +652,28 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
             scaler.scale(loss).backward()
             if grad_clip > 0:
                 scaler.unscale_(optim)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-            scaler.step(optim)
+                total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+            else:
+                total_norm = None
+            # Guard against a degenerate sample producing a non-finite loss or
+            # gradient: stepping on it would poison the weights for the rest of
+            # the run, so skip the update (keep the last good weights), count it,
+            # and carry on.  scaler.update() is still called so AMP scale-state
+            # stays consistent.
+            loss_finite = bool(torch.isfinite(loss))
+            grad_finite = total_norm is None or bool(torch.isfinite(total_norm))
+            if loss_finite and grad_finite:
+                scaler.step(optim)
+                running += float(loss.detach())
+                n_batches += 1
+            else:
+                nan_skips += 1
             scaler.update()
-            running += float(loss.detach())
-            n_batches += 1
-            train_bar.set_postfix(loss=f"{running / n_batches:.4f}")
+            train_bar.set_postfix(loss=f"{running / max(1, n_batches):.4f}")
         train_bar.close()
+        if nan_skips:
+            LOG.warning("epoch %d: skipped %d non-finite training step(s) "
+                        "(kept last good weights).", epoch, nan_skips)
         train_loss = running / max(1, n_batches)
 
         # ---- validation -----------------------------------------------------
@@ -572,9 +698,18 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
                     K = pred.shape[-1]
                     angles_true_np = batch["angles_rad"][..., :K].detach().cpu().numpy()
                     angles_pred_np = pred.detach().cpu().numpy()
-                    per_sample = rmspe_deg(angles_pred_np, angles_true_np, reduce="none")
-                    val_rmspe_sum += float(per_sample.sum())
-                    val_count += per_sample.shape[0]
+                    # NaN-aware RMSPE: sort, compute periodic error, use
+                    # nanmean to handle variable K padding.
+                    p_sorted = np.sort(angles_pred_np, axis=-1)
+                    t_sorted = np.sort(angles_true_np, axis=-1)
+                    diff = p_sorted - t_sorted
+                    diff = (diff + np.pi / 2.0) % np.pi - np.pi / 2.0
+                    err_deg2 = np.rad2deg(diff) ** 2
+                    with np.errstate(all='ignore'):
+                        per_sample = np.sqrt(np.nanmean(err_deg2, axis=-1))
+                    finite = np.isfinite(per_sample)
+                    val_rmspe_sum += float(per_sample[finite].sum())
+                    val_count += int(finite.sum())
                 running_val_loss = val_loss_sum / max(1, val_samples)
                 running_rmspe = (val_rmspe_sum / val_count) if val_count else float("nan")
                 val_bar.set_postfix(loss=f"{running_val_loss:.4f}",
@@ -603,32 +738,49 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
 
         history.append(dict(epoch=epoch, train=train_loss, val=val_loss,
                             val_rmspe_deg=val_rmspe, lr=lr_now))
+        # Persist history each epoch so an interruption keeps the curve.
+        with (ckpt_dir / "history.json").open("w") as fh:
+            json.dump(history, fh, indent=2)
 
         if isinstance(sched, torch.optim.lr_scheduler.ReduceLROnPlateau):
             sched.step(val_loss)
         elif sched is not None:
             sched.step()
 
-        # Persist the inner model's state_dict so it can be reloaded by
-        # plain `Model(**init).load_state_dict(...)` without the training
-        # wrapper.
-        inner_state = (model._inner.state_dict()
-                       if hasattr(model, "_inner") else model.state_dict())
-        torch.save({"model": inner_state, "epoch": epoch,
-                    "cfg": cfg}, ckpt_dir / "last.pt")
-        score = val_rmspe if val_count else val_loss
-        if score < best_val:
+        # Paper §IV: "early-stopping patience 25 epochs (validation loss)".
+        score = val_loss
+        is_best = score < best_val
+        if is_best:
             best_val = score
             stale = 0
-            torch.save({"model": inner_state, "epoch": epoch,
-                        "cfg": cfg, "val_rmspe_deg": val_rmspe},
-                       ckpt_dir / "best.pt")
-            tqdm.write(f"  ↳ new best (val_rmspe={val_rmspe:.3f}°); saved best.pt")
         else:
             stale += 1
-            if stale >= patience:
-                tqdm.write(f"Early stopping at epoch {epoch} (patience={patience})")
-                break
+
+        # Persist the inner model's state_dict (so it can be reloaded by a
+        # plain `Model(**init).load_state_dict(...)` without the training
+        # wrapper) PLUS the full optimizer/scheduler/early-stop state so a
+        # future `--resume` is an exact continuation rather than a warm-start.
+        inner_state = (model._inner.state_dict()
+                       if hasattr(model, "_inner") else model.state_dict())
+        full_state = {
+            "model": inner_state,
+            "epoch": epoch,
+            "cfg": cfg,
+            "optim": optim.state_dict(),
+            "sched": sched.state_dict() if sched is not None else None,
+            "best_val": best_val,
+            "stale": stale,
+            "val_loss": val_loss,
+            "val_rmspe_deg": val_rmspe,
+        }
+        torch.save(full_state, ckpt_dir / "last.pt")
+        if is_best:
+            torch.save(full_state, ckpt_dir / "best.pt")
+            tqdm.write(f"  ↳ new best (val_loss={val_loss:.4f}, "
+                       f"val_rmspe={val_rmspe:.3f}°); saved best.pt")
+        elif stale >= patience:
+            tqdm.write(f"Early stopping at epoch {epoch} (patience={patience})")
+            break
     epoch_bar.close()
 
     with (ckpt_dir / "history.json").open("w") as fh:
@@ -656,6 +808,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="Override the config's seed.")
     parser.add_argument("--epochs", type=int, default=None,
                         help="Override train.epochs (useful for dry runs).")
+    parser.add_argument("--resume", type=Path, default=None,
+                        help="Resume from this checkpoint. Warm-starts (Adam + "
+                             "LR scheduler re-initialised) if the checkpoint "
+                             "predates full-state saving.")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args(argv)
 
@@ -668,6 +824,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         cfg["seed"] = args.seed
     if args.epochs is not None:
         cfg.setdefault("train", {})["epochs"] = args.epochs
+    if args.resume is not None:
+        cfg.setdefault("train", {})["resume_from"] = str(args.resume)
 
     # Project root = parent of the configs/ directory (two levels up from the
     # specific config file).  Robust to any cwd.
