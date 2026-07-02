@@ -86,3 +86,7 @@ desktop.ini
 DOA_env/
 .venv/
 venv/
+
+# ---- Local scratch/data dumps (not for the repo) ----
+Data/
+test_output/

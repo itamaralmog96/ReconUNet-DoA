@@ -698,12 +698,14 @@ def train_loop(cfg: dict, project_root: Path) -> dict:
                     K = pred.shape[-1]
                     angles_true_np = batch["angles_rad"][..., :K].detach().cpu().numpy()
                     angles_pred_np = pred.detach().cpu().numpy()
-                    # NaN-aware RMSPE: sort, compute periodic error, use
-                    # nanmean to handle variable K padding.
+                    # NaN-aware RMSPE: sort (= optimal permutation for
+                    # scalars) and use nanmean for variable-K padding.  No
+                    # angular wrap — matches the eval harness / paper eq (31).
+                    # (The TRAINING loss keeps its mod-π wrap for gradient
+                    # stability, matching upstream SubspaceNet's criterion.)
                     p_sorted = np.sort(angles_pred_np, axis=-1)
                     t_sorted = np.sort(angles_true_np, axis=-1)
                     diff = p_sorted - t_sorted
-                    diff = (diff + np.pi / 2.0) % np.pi - np.pi / 2.0
                     err_deg2 = np.rad2deg(diff) ** 2
                     with np.errstate(all='ignore'):
                         per_sample = np.sqrt(np.nanmean(err_deg2, axis=-1))

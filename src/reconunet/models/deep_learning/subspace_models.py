@@ -424,7 +424,6 @@ def root_music(Rz: torch.Tensor, M: int, batch_size: int) -> Tuple[torch.Tensor,
     element_spacing = 0.5  # wavelength units
     N = Rz.shape[-1]
     k_d = element_spacing * 2 * np.pi
-    c = N / 2 if N % 2 == 0 else (N - 1) / 2
     _rad2deg = 180.0 / np.pi
 
     # Batched noise projector — single eigh call for whole batch
@@ -436,13 +435,23 @@ def root_music(Rz: torch.Tensor, M: int, batch_size: int) -> Tuple[torch.Tensor,
     # Batched polynomial root-finding — single eigvals call
     roots_batch = find_roots_batched(coeffs_batch)           # [B, 2N-2]
 
-    # Shift roots for array center
-    phase = torch.tensor(1j * k_d * c, dtype=roots_batch.dtype, device=roots_batch.device)
-    roots_shifted = roots_batch * torch.exp(phase)           # [B, 2N-2]
+    # NOTE: a legacy "shift roots for array center" step (roots · e^{j·k_d·c},
+    # c = ⌊N/2⌋) used to live here.  With d = λ/2 it is exp(jπc): a NO-OP for
+    # c even (N ≡ 0,1 mod 4, incl. the paper's N=8) but a sign flip — i.e.
+    # garbage DoAs — for c odd (N=6,7,10,11,…).  The root phases already carry
+    # the full angle information, so the shift is simply removed.
+    roots_shifted = roots_batch                               # [B, 2N-2]
 
-    # All roots → DoA (for debugging / spectrum)
+    # All roots → DoA (for debugging / spectrum).
+    # Clamp strictly INSIDE [-1, 1]: acos has an infinite derivative at ±1,
+    # so a degenerate spectrum whose root angles land exactly on the boundary
+    # (e.g. the near-zero surrogate covariances of early training) would emit
+    # Inf/NaN gradients.  The 1e-6 margin only affects roots at ±90° endfire
+    # (outside the ±60° operating range) by <0.1°, and keeps grads finite.
+    _EPS_ACOS = 1e-6
     roots_angles_all = torch.angle(roots_shifted) / k_d
-    roots_angles_all = torch.clamp(roots_angles_all, min=-1.0, max=1.0)
+    roots_angles_all = torch.clamp(roots_angles_all,
+                                   min=-1.0 + _EPS_ACOS, max=1.0 - _EPS_ACOS)
     doa_all = torch.acos(-roots_angles_all) * _rad2deg       # [B, 2N-2]
 
     # Vectorised root selection (replaces the per-sample Python loop): for each

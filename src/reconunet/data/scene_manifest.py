@@ -416,13 +416,13 @@ class SceneManifest:
             iterator = tqdm(iterator, desc=progress_desc, unit="scene", leave=True)
         for i in iterator:
             k = int(rng.choice(k_choices))
-            for _attempt in range(32):
+            for _attempt in range(200):
                 angles = np.sort(rng.uniform(lo, hi, size=k).astype(np.float32))
                 if k == 1 or np.min(np.diff(angles)) >= min_separation_deg:
                     break
             else:  # pragma: no cover
                 raise RuntimeError(
-                    f"Could not draw well-separated angles after 32 attempts "
+                    f"Could not draw well-separated angles after 200 attempts "
                     f"(k={k}, min_sep={min_separation_deg}°)"
                 )
             snr = float(rng.uniform(snr_lo, snr_hi))
@@ -457,6 +457,121 @@ class SceneManifest:
                 mp_distribution=mp_dist_code,
             )
             manifest[i] = scene
+        return manifest
+
+
+    @classmethod
+    def fixed_angles_snr_sweep(
+        cls,
+        meta: ManifestMeta,
+        n_angle_configs: int,
+        snr_levels_db: Sequence[float],
+        rng: Optional[np.random.Generator] = None,
+        k: int = 1,
+        min_separation_deg: float = 10.0,
+        array_errors: str = "mild",
+        progress_desc: Optional[str] = None,
+        # --- multipath knobs (default off) -----------------------------------
+        enable_multipath: bool = False,
+        num_multipath_components: int = 0,
+        multipath_distribution: str = "uniform",
+        mp_max_delay_factor: float = 10.0,
+    ) -> "SceneManifest":
+        """Paper §IV "Evaluation set construction (consistent angles across SNR)".
+
+        Builds ``n_angle_configs * len(snr_levels_db)`` scenes laid out as
+        ``n_angle_configs`` blocks of ``len(snr_levels_db)`` consecutive rows.
+        Within one block the *scene seed*, the K direct-path angles, the
+        per-element imperfection draws and the multipath layout are
+        identical; only ``snr_db`` varies.  This matches the paper's
+        construction:
+
+            "1 000 unique angle configurations [...] are fixed and reused
+             across all SNRs.  For each SNR, render one sample per
+             configuration by adjusting only sigma_n^2."   (§IV, p.6)
+
+        Each scenario is *narrow*: ``k`` and ``num_multipath_components``
+        are scalars (not sets), so this call produces exactly the Basic /
+        Moderate / Advanced-1 / Advanced-2 mixes from §IV.
+
+        Parameters
+        ----------
+        n_angle_configs
+            Number of unique direct-path angle configurations to draw
+            (paper uses 1 000).
+        snr_levels_db
+            Sequence of SNRs (in dB) at which every angle configuration
+            is rendered (paper uses [-20, -15, -10, -5, 0, 5, 10, 15, 20]).
+        k
+            Direct-source count per scene (Basic=1, Moderate=2, Crowded=4,
+            OOD=1).
+        num_multipath_components
+            Coherent-replica count per scene (Basic=0, Moderate=1,
+            Crowded=3, OOD=6).  ``enable_multipath`` is forced True iff
+            this is > 0.
+        """
+        rng = rng or np.random.default_rng()
+        S = len(snr_levels_db)
+        if S == 0:
+            raise ValueError("snr_levels_db must contain at least one entry")
+        size = int(n_angle_configs) * S
+        manifest = cls.create(meta, size)
+        lo, hi = meta.angle_range_deg
+
+        err_presets = {
+            "none":  (0.0, 0.0, 0.0, 0.0),
+            "mild":  (0.1, 1.0, 0.02, 1.0),
+            "harsh": (0.5, 5.0, 0.10, 5.0),
+        }
+        gain_err, phase_err, coupling, pos_err = err_presets[array_errors]
+        _dist_map = {"uniform": 0, "exponential": 1}
+        mp_dist_code = _dist_map[multipath_distribution]
+
+        n_mp = max(0, int(num_multipath_components))
+        has_mp = bool(enable_multipath and n_mp > 0)
+
+        iterator = range(int(n_angle_configs))
+        if progress_desc is not None:
+            iterator = tqdm(iterator, desc=progress_desc, unit="config",
+                            leave=True)
+        row = 0
+        for cfg_idx in iterator:
+            for _attempt in range(200):
+                angles = np.sort(rng.uniform(lo, hi, size=k).astype(np.float32))
+                if k == 1 or np.min(np.diff(angles)) >= min_separation_deg:
+                    break
+            else:  # pragma: no cover
+                raise RuntimeError(
+                    f"Could not draw well-separated angles after 200 attempts "
+                    f"(k={k}, min_sep={min_separation_deg}°)"
+                )
+            # One seed per angle configuration: scene_seed is shared across
+            # all S SNR levels for this configuration so source signals and
+            # array imperfections are bit-identical and only the noise
+            # variance changes (paper §IV, p.6).
+            scene_seed = int(rng.integers(0, 2**32 - 1, dtype=np.uint64))
+            angles_padded = np.pad(angles, (0, K_MAX - k), constant_values=ANGLE_FILL)
+            for snr in snr_levels_db:
+                scene = Scene(
+                    seed=scene_seed,
+                    n_sources=k,
+                    angles_deg=angles_padded,
+                    snr_db=float(snr),
+                    array_type=ArrayType.ULA,
+                    modulation=ModulationType.NARROWBAND,
+                    gain_err_dB=gain_err,
+                    phase_err_deg=phase_err,
+                    mutual_coupling=coupling,
+                    position_err_pct=pos_err,
+                    scene_id=int(cfg_idx),       # block id = unique angle config
+                    has_multipath=has_mp,
+                    num_multipath=n_mp,
+                    mp_max_delay_factor=float(mp_max_delay_factor),
+                    mp_distribution=mp_dist_code,
+                )
+                manifest[row] = scene
+                row += 1
+        assert row == size
         return manifest
 
 

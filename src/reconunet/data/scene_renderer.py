@@ -588,10 +588,31 @@ def lag_stack(snapshots: "torch.Tensor", tau: int) -> "torch.Tensor":
     -----
     The lag-``ℓ`` sample autocorrelation is
 
-        R_ℓ[m, m'] = (1 / (T-ℓ)) · Σ_t  X[m, t+ℓ] · conj(X[m', t])
+        R_ℓ[m, m'] = (1 / (T-ℓ)) · Σ_{t=0}^{T-ℓ-1}  X[m, t] · conj(X[m', t+ℓ])
 
-    so the stack provides a running view of short-range temporal structure
-    that both SubspaceNet and ReconUNet ingest.
+    i.e. the Hermitian TRANSPOSE of the published paper's Eq. (47), which
+    writes x(t)·xᴴ(t−ℓ).  The two carry identical information
+    (R_code[ℓ] = R̂_eq47[ℓ]ᴴ) and this direction is what every consumer
+    implements — including upstream SubspaceNet's ``data_handler.py`` — so
+    the MANUSCRIPT equation should gain a ᴴ rather than the code flipping
+    (all trained checkpoints depend on this convention).  Matches the
+    legacy training/eval pipeline
+    (``reconunet.training.subspace_training.create_autocorrelation_tensor``,
+    ``reconunet.data.dataset_generator._compute_autocorr_direct_optimized``,
+    and ``scripts/analysis/controlled_angle_evaluation.create_autocorrelation_input_for_unet``).
+    Lag indices run ``ℓ = 0, …, τ-1`` so ℓ=0 is the standard sample
+    covariance ``X X^H / T`` — the most informative spatial statistic and
+    the one classical subspace methods consume directly.
+
+    Historical note.  An earlier refactor (pre-2026-04-27) introduced a
+    different formula here: ``R[ℓ] = (1/(T-ℓ-1)) Σ X[m, t+ℓ+1] · conj(X[m', t])``
+    which is *off-by-one* (no zero-lag SCM in the stack) and *conjugate-
+    transposed* relative to the paper.  Any checkpoint trained against
+    that buggy version (e.g. ``experiments/runs/reconunet_paper/`` from
+    the 2026-04-26 retrain) will produce broken DOA estimates with this
+    fixed formula and must be retrained.  The 2025-09-29 paper-headline
+    checkpoint (``evd_unet_denoising_model_20250929_015132.pth``) was
+    trained on the correct formula and works directly.
     """
     import torch  # deferred — lets the rest of the renderer run in numpy-only envs
 
@@ -607,9 +628,9 @@ def lag_stack(snapshots: "torch.Tensor", tau: int) -> "torch.Tensor":
 
     out = torch.zeros((B, tau, 2 * M, M), dtype=torch.float32, device=snapshots.device)
     for lag in range(tau):
-        past = snapshots[..., : T - lag - 1]               # [B, M, T-lag-1]
-        future = snapshots[..., lag + 1:]                 # [B, M, T-lag-1]
-        R = (future @ past.conj().transpose(-1, -2)) / float(T - lag - 1)  # [B, M, M]
+        x1 = snapshots[..., : T - lag]                     # [B, M, T-lag]   x[:, t]
+        x2 = snapshots[..., lag:]                          # [B, M, T-lag]   x[:, t+lag]
+        R = (x1 @ x2.conj().transpose(-1, -2)) / float(T - lag)   # [B, M, M]
         out[:, lag, :M, :] = R.real
         out[:, lag, M:, :] = R.imag
 
