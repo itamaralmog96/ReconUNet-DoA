@@ -168,11 +168,14 @@ class SubViTAdapter(BaselineAdapter):
         meta: Optional[Dict[str, Any]] = None,
     ) -> BaselineOutput:
         logits = model(prepped, logits=False)   # [B, grid_size] spatial spectrum
-        # Use the adapter's configured K_max — the manifest's ``meta.K_max``
-        # is the dataset-wide source-count cap (often 8) and would over-
-        # predict for typical k=3 scenes.
+        # Peak-pick the TRUE per-sample source count when the trainer threads it
+        # through ``meta['n_sources']`` (variable-K, like SubspaceNetAdapter);
+        # otherwise fall back to the configured K_max.  Picking a fixed K_max on
+        # a variable-K corpus injects spurious peaks on low-K samples and badly
+        # inflates RMSPE (3 phantom angles on every K=1 scene).
         K_max = int(self.K_max)
-        angles_pred = self._peak_pick(logits, model, K=K_max)
+        n_sources = None if meta is None else meta.get("n_sources")
+        angles_pred = self._peak_pick(logits, model, K=K_max, n_sources=n_sources)
 
         loss = None
         if targets is not None and self.training_loss_fn is not None:
@@ -186,22 +189,34 @@ class SubViTAdapter(BaselineAdapter):
     # --- helpers ------------------------------------------------------------
 
     @staticmethod
-    def _peak_pick(spectrum: torch.Tensor, model: nn.Module, K: int) -> torch.Tensor:
-        """Return top-K grid cells converted to radians, shape ``[B, K]``.
+    def _peak_pick(spectrum: torch.Tensor, model: nn.Module, K: int,
+                   n_sources: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Return grid-peak DoAs in radians, shape ``[B, K]`` (NaN-padded).
 
-        Simple ``topk`` peak-picking — good enough for well-separated sources.
+        ``torch.topk`` returns peaks in descending spectrum-value order, so the
+        first columns are the strongest peaks.  When ``n_sources`` is supplied
+        (per-sample true K), peaks beyond each sample's K are set to NaN so a
+        K<K_max scene contributes exactly its true sources to the downstream
+        NaN-aware RMSPE — no phantom angles.  Output is sorted ascending by
+        angle (NaN sorts to the end), matching the eval-harness convention.
+
         For tightly spaced sources a local-max pass would be more principled;
         we leave that to the evaluation harness (post-processing).
         """
-        B = spectrum.shape[0]
-        _, idx = torch.topk(spectrum, k=K, dim=-1)            # [B, K]
+        _, idx = torch.topk(spectrum, k=K, dim=-1)            # [B, K] desc by value
         grid_size = int(getattr(model, "_grid_size", spectrum.shape[-1]))
         g0 = float(getattr(model, "_grid_start", -60.0))
         g1 = float(getattr(model, "_grid_end", 60.0))
         grid_deg = torch.linspace(g0, g1, grid_size, device=spectrum.device)
         angles_deg = grid_deg[idx]                             # [B, K]
-        # Sort per-row so predictions come out in ascending angle order (matches
-        # the evaluation harness's RMSPE / Hungarian-matched loss convention).
+        if n_sources is not None:
+            ks = torch.as_tensor(n_sources, device=spectrum.device).long().clamp(1, K)
+            col = torch.arange(K, device=spectrum.device).unsqueeze(0)    # [1, K]
+            keep = col < ks.unsqueeze(1)                       # [B, K]; first k_true (strongest)
+            angles_deg = torch.where(keep, angles_deg,
+                                     torch.full_like(angles_deg, float("nan")))
+        # Sort per-row so predictions come out in ascending angle order (NaN to
+        # the end), matching the eval harness's RMSPE / Hungarian-matched loss.
         angles_deg, _ = torch.sort(angles_deg, dim=-1)
         return torch.deg2rad(angles_deg)
 
