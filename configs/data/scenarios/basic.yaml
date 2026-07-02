@@ -1,0 +1,50 @@
+# --------------------------------------------------------------------------
+# Paper §IV scenario "Basic": one direct source, no multipath.
+# --------------------------------------------------------------------------
+#
+# Source spec: docs/paper.pdf  §IV "Scenario matrix (stress tests)" —
+#     "Basic: one direct source (no multipath)."
+#
+# This config produces the "consistent angles across SNR" test set the
+# paper describes (§IV, p.6):
+#
+#     "1 000 unique angle configurations [...] are fixed and reused across
+#      all SNRs.  For each SNR, render one sample per configuration by
+#      adjusting only sigma_n^2."
+#
+#   reconunet-generate -c configs/data/scenarios/basic.yaml --overwrite
+#
+# Then evaluate via:
+#   reconunet-evaluate-scenarios -c configs/eval/scenarios/basic.yaml
+# --------------------------------------------------------------------------
+
+mode: fixed_angles_snr_sweep
+
+manifest:
+  test_path: data/scenes/scenarios/basic/test.npy
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  # Eval SNR sweep — paper §IV: "[-20, 20] dB".  The actual snr_db on each
+  # row is set by ``scenario.snr_levels_db`` below; this is just metadata.
+  snr_range_db: [-20.0, 20.0]
+  version: "scenario-basic-1.0"
+  notes: "Paper §IV scenario: Basic (1 direct source, no multipath)."
+
+scenario:
+  n_angle_configs: 1000                   # paper: 1 000 unique angle configs
+  snr_levels_db: [-20, -15, -10, -5, 0, 5, 10, 15, 20]   # paper: 9 SNR levels
+  k: 1                                    # Basic = 1 direct source
+  num_multipath_components: 0             # no multipath
+  enable_multipath: false
+  min_separation_deg: 10.0                # paper: ≥10° between direct sources
+  array_errors: mild                      # paper §II-C "mild" preset
+  rng_seed: 20260422

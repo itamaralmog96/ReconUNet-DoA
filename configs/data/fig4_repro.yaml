@@ -1,0 +1,43 @@
+# --------------------------------------------------------------------------
+# SubspaceNet paper Fig. 4 reproduction corpus.
+# --------------------------------------------------------------------------
+# Fig. 4 (Shmuel et al. 2023, §IV-B-2): "DoA estimation MSPE, T=200,
+# non-coherent sources", M=2 sources, calibrated ULA (N=8), narrowband,
+# low SNR sweep [-5, 0] dB.  Data-driven estimators are trained on the
+# LOWEST SNR in the range (-5 dB), then evaluated across the whole sweep.
+#
+# Deviations from the paper (noted for honesty):
+#   • angle range [-60, 60]° vs the paper's [-90, 90]° (avoids ULA endfire
+#     degeneracy; lowers absolute RMSPE for ALL methods equally, so the
+#     SubspaceNet-vs-classical gap — the point of Fig 4 — is preserved).
+#   • T fixed = 200 (matches paper); calibrated array (array_errors: none).
+#
+# Writes to its OWN data/scenes/fig4/ paths — clobbers nothing.
+
+manifest:
+  train_path: data/scenes/fig4/train.npy      # SNR fixed at -5 dB
+  val_path:   data/scenes/fig4/val.npy        # SNR fixed at -5 dB
+  test_path:  data/scenes/fig4/test.npy       # SNR -5 (throwaway; sweep test is fig4_sweep.yaml)
+  train_size: 40_000
+  val_size:    4_000
+  test_size:   1_000
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 200
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [-5.0, -5.0]               # TRAIN/VAL: fixed -5 dB (paper recipe)
+  version: "0.1-fig4"
+  notes: "SubspaceNet Fig.4 repro — M=2 non-coherent, T=200, calibrated."
+
+sampling:
+  array_errors: none                          # calibrated array (AS3 holds)
+  k_choices: [2]                              # M=2 sources (Fig 4)
+  min_separation_deg: 5.0
+  rng_seed: 20260420

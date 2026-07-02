@@ -1,0 +1,54 @@
+# --------------------------------------------------------------------------
+# SubViT smoke-train config — throwaway, correctness/GPU check only.
+# --------------------------------------------------------------------------
+# Same model/loss/collate as subvit_paper.yaml, but the tiny smoke corpus,
+# small batch, no AMP, single-process loading, and a throwaway run dir.
+# Purpose: confirm the SubViT training loop runs end-to-end on the GPU and
+# drives val-RMSPE down. Mirrors configs/train/subspacenet_smoke.yaml.
+#
+#   reconunet-train --config configs/train/subvit_smoke.yaml --epochs 10
+
+model:
+  name: subvit
+  adapter_class: reconunet.models.third_party.subvit_adapter.SubViTAdapter
+  init:
+    M: 8
+    K_max: 3                          # smoke corpus is k_choices=[3]
+    grid_size: 121
+    angle_range_deg: [-60.0, 60.0]
+    embed_dim: 256
+    depth: 6
+    num_heads: 8
+
+collate: subvit
+
+data:
+  config: configs/data/smoke.yaml
+  batch_size: 128                     # ViT is heavier; keep gentle on the GPU
+  num_workers: 0
+  pin_memory: false
+
+optim:
+  optimizer: adam
+  lr: 1.0e-4
+  weight_decay: 1.0e-5
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.7
+    patience: 5
+    min_lr: 1.0e-6
+
+loss:
+  bce_weight: 1.0                     # grid BCE is the only term the trainer uses
+
+train:
+  epochs: 10
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/subvit_smoke/checkpoints/
+  tensorboard_dir: experiments/runs/subvit_smoke/tb/
+  early_stopping_patience: 25
+  amp: false
+
+seed: 20260420

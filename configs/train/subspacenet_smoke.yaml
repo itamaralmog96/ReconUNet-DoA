@@ -1,0 +1,51 @@
+# --------------------------------------------------------------------------
+# SubspaceNet smoke-train config — throwaway, correctness check only.
+# --------------------------------------------------------------------------
+# Same model/loss as subspacenet_paper.yaml, but a tiny corpus, small batch,
+# no AMP, single-process loading, and a throwaway run dir.  Purpose: confirm
+# the loop trains & validates after the angle-convention + eigh fixes (val
+# RMSPE should fall well below the random ~30-40° within ~10 epochs).
+#
+#   reconunet-generate --config configs/data/smoke.yaml
+#   reconunet-train    --config configs/train/subspacenet_smoke.yaml --epochs 10
+
+model:
+  name: subspacenet
+  adapter_class: reconunet.models.third_party.subspacenet_adapter.SubspaceNetAdapter
+  init:
+    M: 3
+    tau: 8
+    diff_method: root_music
+
+collate: subspacenet
+
+data:
+  config: configs/data/smoke.yaml
+  batch_size: 256
+  num_workers: 0
+  pin_memory: false
+
+optim:
+  optimizer: adam
+  lr: 1.0e-4
+  weight_decay: 1.0e-5
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.7
+    patience: 5
+    min_lr: 1.0e-6
+
+loss:
+  rmspel_weight: 1.0
+
+train:
+  epochs: 10
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/subspacenet_smoke/checkpoints/
+  tensorboard_dir: experiments/runs/subspacenet_smoke/tb/
+  early_stopping_patience: 25
+  amp: false
+
+seed: 20260420

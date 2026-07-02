@@ -22,7 +22,8 @@ model:
   name: subspacenet
   adapter_class: reconunet.models.third_party.subspacenet_adapter.SubspaceNetAdapter
   init:
-    M: 3                              # SubspaceNet's "M" = #sources upper bound
+    M: 4                              # K_max fallback; the adapter uses the TRUE
+                                      # per-sample n_sources (variable-K, like ReconUNet)
     tau: 8                            # paper-aligned (matches paper_corpus.yaml)
     diff_method: root_music
 

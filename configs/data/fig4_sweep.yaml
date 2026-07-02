@@ -1,0 +1,35 @@
+# --------------------------------------------------------------------------
+# Fig. 4 reproduction — TEST sweep corpus (SNR uniform over [-5, 0] dB).
+# --------------------------------------------------------------------------
+# Same scene parameters as configs/data/fig4_repro.yaml (M=2 non-coherent,
+# T=200, calibrated N=8 ULA) but the SNR is swept so the unified harness can
+# bucket the test scenes per-SNR for the Fig-4 MSPE-vs-SNR curve.  Only the
+# `test` split is used; train/val are tiny throwaways.
+
+manifest:
+  train_path: data/scenes/fig4_sweep/train.npy
+  val_path:   data/scenes/fig4_sweep/val.npy
+  test_path:  data/scenes/fig4_sweep/test.npy
+  train_size:    500
+  val_size:      500
+  test_size:  12_000
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 200
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db:    [-5.0, 0.0]                # TEST: sweep [-5, 0] dB
+  version: "0.1-fig4-sweep"
+  notes: "SubspaceNet Fig.4 repro — test sweep, M=2 non-coherent, T=200, calibrated."
+
+sampling:
+  array_errors: none
+  k_choices: [2]
+  min_separation_deg: 5.0
+  rng_seed: 20260421                          # different seed → disjoint from train

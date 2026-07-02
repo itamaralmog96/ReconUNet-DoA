@@ -17,22 +17,27 @@ model:
   adapter_class: reconunet.models.third_party.subvit_adapter.SubViTAdapter
   init:
     M: 8
-    K_max: 3
+    K_max: 4                          # paper_corpus is k_choices=[1,2,3,4]
     grid_size: 121
     angle_range_deg: [-60.0, 60.0]
-    embed_dim: 256
+    # Zhou et al. §V-2 published hyperparameters: D=768 (d_k = 768/12 = 64),
+    # 6 transformer encoders, 12 attention heads, MLP expansion 4 (upstream
+    # default mlp_ratio=4.0).  An earlier run used a 9x smaller variant
+    # (embed_dim 256 / 8 heads / 4.8M params) — NOT representative of the
+    # published DOA-ViT capacity; results from it must not be labeled as
+    # "the SubViT baseline".
+    embed_dim: 768
     depth: 6
-    num_heads: 8
+    num_heads: 12
 
 collate: subvit
 
 data:
   config: configs/data/paper_corpus.yaml
-  # SubViT memory is heavier than the CNN baselines — the paper's batch=2048
-  # may not fit on a single GPU.  Drop to 512 and rely on accumulate-grad if
-  # exact batch=2048 is needed (the trainer doesn't accumulate yet — see
-  # docs/PAPER_FAITHFUL_TRAINING.md gap (c)).
-  batch_size: 512
+  # Paper §IV batch=2048 — measured to fit easily (peak ~1.9 GiB of 16 GiB; the
+  # ViT is only 4.8M params on 8x8 inputs), so no accumulate-grad needed and the
+  # three baselines share an identical batch size (apples-to-apples).
+  batch_size: 2048
   num_workers: 8
   pin_memory: true
 
@@ -49,9 +54,14 @@ optim:
     min_lr: 1.0e-6
 
 loss:
-  bce_weight:         1.0
-  peak_sharpness:     0.1
-  topk_rmspel_weight: 0.3
+  # Grid-BCE on the spatial spectrum is the TRAINING objective (the only key
+  # the trainer consumes for this adapter).  At validation time the loss falls
+  # through to sorted RMSPE (the spectrum carries no grad under no_grad), so
+  # checkpoint selection / early stopping monitor an angle-domain criterion —
+  # a deliberate choice now that peak-picking uses the true per-sample K.
+  # (Former dead keys peak_sharpness / topk_rmspel_weight removed — they were
+  # never consumed by the trainer.)
+  bce_weight: 1.0
 
 train:
   epochs: 300                         # paper §IV (legacy: 80)
@@ -59,7 +69,9 @@ train:
   checkpoint_dir: experiments/runs/subvit_paper/checkpoints/
   tensorboard_dir: experiments/runs/subvit_paper/tb/
   early_stopping_patience: 25
-  amp: true
+  # The trainer force-disables AMP for all adapter/native models (complex
+  # tensors); all three baselines train in full fp32 — a fairness plus.
+  amp: false
 
 eval:
   config: configs/eval/evaluation_config.yaml

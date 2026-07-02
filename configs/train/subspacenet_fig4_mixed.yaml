@@ -1,0 +1,48 @@
+# --------------------------------------------------------------------------
+# SubspaceNet — Fig. 4 reproduction, MIXED-SNR training variant.
+# --------------------------------------------------------------------------
+# Trains across the [-5,0] dB sweep (vs subspacenet_fig4.yaml's fixed -5 dB)
+# so the model generalises across noise levels and reproduces the paper's
+# improving-with-SNR curves.  LR lowered to 5e-4 for stabler convergence
+# (the 1e-3 single-SNR run had a bouncy validation curve).
+
+model:
+  name: subspacenet
+  adapter_class: reconunet.models.third_party.subspacenet_adapter.SubspaceNetAdapter
+  init:
+    M: 2
+    tau: 8
+    diff_method: root_music
+
+collate: subspacenet
+
+data:
+  config: configs/data/fig4_mixed.yaml
+  batch_size: 512
+  num_workers: 0
+  pin_memory: false
+
+optim:
+  optimizer: adam
+  lr: 5.0e-4
+  weight_decay: 1.0e-9
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.5
+    patience: 6
+    min_lr: 1.0e-6
+
+loss:
+  rmspel_weight: 1.0
+
+train:
+  epochs: 80
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/subspacenet_fig4_mixed/checkpoints/
+  tensorboard_dir: experiments/runs/subspacenet_fig4_mixed/tb/
+  early_stopping_patience: 15
+  amp: false
+
+seed: 20260420

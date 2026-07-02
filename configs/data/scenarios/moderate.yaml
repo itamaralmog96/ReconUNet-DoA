@@ -1,0 +1,43 @@
+# --------------------------------------------------------------------------
+# Paper §IV scenario "Moderate": two direct sources + one coherent replica.
+# --------------------------------------------------------------------------
+#
+# Source spec: docs/paper.pdf  §IV "Scenario matrix (stress tests)" —
+#     "Moderate: two direct sources plus one coherent replica
+#      (of one source)."
+#
+# Coherent multipath is in-distribution for the paper's training corpus
+# (M ≤ 3), so this is a fair-and-square test.
+#
+#   reconunet-generate -c configs/data/scenarios/moderate.yaml --overwrite
+#   reconunet-evaluate-scenarios -c configs/eval/scenarios/moderate.yaml
+# --------------------------------------------------------------------------
+
+mode: fixed_angles_snr_sweep
+
+manifest:
+  test_path: data/scenes/scenarios/moderate/test.npy
+
+meta:
+  M: 8
+  element_spacing_lambda: 0.5
+  array_type: ULA
+  T: 512
+  fs_Hz: 2.45e9
+  speed_of_light: 2.998e8
+  tau: 8
+  K_max: 8
+  angle_range_deg: [-60.0, 60.0]
+  snr_range_db: [-20.0, 20.0]
+  version: "scenario-moderate-1.0"
+  notes: "Paper §IV scenario: Moderate (2 direct sources + 1 coherent replica)."
+
+scenario:
+  n_angle_configs: 1000
+  snr_levels_db: [-20, -15, -10, -5, 0, 5, 10, 15, 20]
+  k: 2                                    # Moderate = 2 direct sources
+  num_multipath_components: 1             # 1 coherent replica
+  enable_multipath: true
+  min_separation_deg: 10.0
+  array_errors: mild
+  rng_seed: 20260423
