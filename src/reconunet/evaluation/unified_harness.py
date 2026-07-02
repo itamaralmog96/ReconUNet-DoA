@@ -44,20 +44,28 @@ def rmspe_deg(
     true_rad: np.ndarray,      # [B, K] ground-truth angles (sorted ascending)
     reduce: str = "mean",
 ) -> np.ndarray:
-    """Permutation-invariant root-mean-square error on an SO(2) manifold.
+    """Permutation-invariant RMSE per paper eq. (31).
 
     Predictions and ground truth are both sorted ascending before the
-    comparison — equivalent to Hungarian matching when ``K ≤ 3`` because the
-    ground truth is already well-separated by ``min_separation_deg``.  For
-    larger K, swap in :func:`scipy.optimize.linear_sum_assignment`.
+    comparison; for scalar angles under squared loss, sorted pairing IS the
+    optimal permutation assignment (rearrangement inequality), for any K —
+    exactly the ``min`` over permutation matrices in eq. (31).
+
+    No angular wrapping is applied: in the broadside convention sinθ is
+    injective on [-90°, 90°], so a ULA has no mod-180° ambiguity here, and
+    every estimator in this project outputs angles inside that interval.
+    (A former ``mod π`` wrap silently shrank gross errors by up to 5×.)
+
+    ``reduce='pooled'`` returns the paper's pooled RMSE:
+    sqrt(mean over ALL per-source squared errors).
     """
     assert pred_rad.shape == true_rad.shape, (pred_rad.shape, true_rad.shape)
     pred = np.sort(pred_rad, axis=-1)
     true = np.sort(true_rad, axis=-1)
-    # Wrap difference into (-π/2, π/2] to make it periodic.
     diff = pred - true
-    diff = (diff + np.pi / 2.0) % np.pi - np.pi / 2.0
     err = np.rad2deg(diff) ** 2
+    if reduce == "pooled":
+        return float(np.sqrt(np.mean(err)))
     per_sample = np.sqrt(np.mean(err, axis=-1))
     if reduce == "mean":
         return np.mean(per_sample)
@@ -78,28 +86,43 @@ def stochastic_crlb_deg(
     snr_db: float,
     element_spacing_lambda: float = 0.5,
 ) -> float:
-    """Stochastic CRLB on DoA variance for K Gaussian sources, one ULA,
-    returned in **degrees²**.
+    """Stochastic (unconditional) CRLB on DoA variance for K uncorrelated,
+    equal-power Gaussian sources on a ULA, returned in **degrees²**.
 
-    Implements the standard Stoica–Nehorai result (IEEE TASSP 1990, §III).
-    The returned scalar is the per-source variance floor in deg²; the paper
-    plots :math:`\\sqrt{\\text{CRLB}}` in degrees.
+    Implements the Stoica–Nehorai unconditional bound (IEEE TASSP 1990):
 
-    This is a minimal, readable implementation; for K > 3 the matrix inverse
-    becomes the bottleneck and a closed-form ULA approximation should be used
-    instead.
+        CRB = (σ²/2T) · { Re[ (Dᴴ P_A^⊥ D) ⊙ (S Aᴴ R⁻¹ A S)ᵀ ] }⁻¹
+
+    with S = snr·I (equal-power uncorrelated sources, σ²=1) and
+    R = A S Aᴴ + I.  For K=1 this reduces to the textbook closed form
+    var = 6·(1 + 1/(M·snr)) / (T·snr·M·(M²−1)·(2πd·cosθ)²), i.e. it carries
+    the (1 + 1/(M·snr)) factor that the deterministic/conditional CRB lacks
+    (a former implementation here computed the deterministic bound — up to
+    3.7× too optimistic in σ at −20 dB).
+
+    The returned scalar is the mean per-source variance floor in deg²; the
+    paper plots sqrt(CRLB) in degrees.
     """
     K = angles_rad.size
+    if K == 0:
+        return float("nan")
     snr = 10.0 ** (snr_db / 10.0)
     m = np.arange(M, dtype=np.float64)[:, None]
     a = np.exp(-1j * 2 * np.pi * element_spacing_lambda * m * np.sin(angles_rad[None, :]))
     d = (-1j * 2 * np.pi * element_spacing_lambda
          * np.cos(angles_rad[None, :]) * m) * a
-    P_a_perp = np.eye(M) - a @ np.linalg.pinv(a.conj().T @ a) @ a.conj().T
-    J = 2.0 * snr * T * np.real((d.conj().T @ P_a_perp @ d))
-    # Per-source variance in rad² → deg²
-    var_rad2 = np.real(np.linalg.inv(J).diagonal())
-    return float(np.mean(np.rad2deg(np.sqrt(var_rad2)) ** 2))
+    try:
+        P_a_perp = np.eye(M) - a @ np.linalg.pinv(a.conj().T @ a) @ a.conj().T
+        H = d.conj().T @ P_a_perp @ d                            # [K, K]
+        # Source covariance S = snr·I; R = A S Aᴴ + σ²I with σ² = 1.
+        S = snr * np.eye(K)
+        R = a @ S @ a.conj().T + np.eye(M)
+        U = S @ a.conj().T @ np.linalg.solve(R, a) @ S           # S Aᴴ R⁻¹ A S
+        J = 2.0 * T * np.real(H * U.T)                           # Hadamard ⊙
+        var_rad2 = np.real(np.linalg.inv(J).diagonal())
+        return float(np.mean(np.rad2deg(np.sqrt(var_rad2)) ** 2))
+    except np.linalg.LinAlgError:
+        return float("nan")
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +212,7 @@ def evaluate(config: HarnessConfig) -> "pandas.DataFrame":   # noqa: F821
                 num_workers=0,
                 collate_fn=collate_fn,
             )
-            errs: List[float] = []
+            sq_sum, sq_n = 0.0, 0            # pooled squared-error accumulator
             crlbs: List[float] = []
             t0 = time.perf_counter()
             with torch.no_grad():
@@ -198,29 +221,45 @@ def evaluate(config: HarnessConfig) -> "pandas.DataFrame":   # noqa: F821
                         pred_rad = spec.adapter(batch, meta)    # [B, K] radians
                     else:
                         x = batch["input"].to(spec.device)
-                        out = spec.adapter.forward(model, x, meta=_meta_dict(meta, spec))
+                        meta_dict = _meta_dict(meta, spec)
+                        meta_dict["n_sources"] = batch["n_sources"]
+                        out = spec.adapter.forward(model, x, meta=meta_dict)
                         pred_rad = out.angles_pred.detach().cpu().numpy()
                     true_rad = batch["angles_rad"].numpy()
-                    K = int(batch["n_sources"][0].item())
-                    true_rad = true_rad[:, :K]
-                    pred_rad = pred_rad[:, :K]
-                    errs.append(rmspe_deg(pred_rad, true_rad, reduce="mean"))
-                    for row_true in true_rad:
+                    n_sources = batch["n_sources"].numpy()
+                    # Pooled squared errors per paper eq. (31): sort both
+                    # (= optimal permutation for scalars, unwrapped), then
+                    # accumulate ALL per-source squared errors — the row-level
+                    # RMSE below is sqrt(mean) over the whole SNR bucket, not
+                    # a mean of per-sample RMSPEs (Jensen gap up to ~3×).
+                    K_max = int(n_sources.max())
+                    t = true_rad[:, :K_max]
+                    p = pred_rad[:, :K_max] if pred_rad.shape[-1] >= K_max else pred_rad
+                    p_sorted = np.sort(p, axis=-1)
+                    t_sorted = np.sort(t, axis=-1)
+                    err_deg2 = np.rad2deg(p_sorted - t_sorted) ** 2
+                    finite = np.isfinite(err_deg2)
+                    if finite.any():
+                        sq_sum += float(err_deg2[finite].sum())
+                        sq_n += int(finite.sum())
+                    for i, row_true in enumerate(true_rad):
+                        k_i = int(n_sources[i])
                         crlbs.append(
                             stochastic_crlb_deg(
                                 M=meta.M, T=meta.T,
-                                angles_rad=row_true,
+                                angles_rad=row_true[:k_i],
                                 snr_db=snr,
                                 element_spacing_lambda=meta.element_spacing_lambda,
                             )
                         )
             t1 = time.perf_counter()
+            crlbs_arr = np.array(crlbs)
             rows.append(
                 {
                     "model":      spec.name,
                     "snr_db":     snr,
-                    "rmse_deg":   float(np.mean(errs)),
-                    "crlb_deg":   float(np.sqrt(np.mean(crlbs))),
+                    "rmse_deg":   float(np.sqrt(sq_sum / sq_n)) if sq_n else float("nan"),
+                    "crlb_deg":   float(np.sqrt(np.nanmean(crlbs_arr))) if crlbs else float("nan"),
                     "n_samples":  int(idx.size),
                     "latency_ms": 1e3 * (t1 - t0) / max(1, len(loader)),
                 }

@@ -74,9 +74,10 @@ baselines = []
 
 [project.scripts]
 # Thin CLI wrappers so users can run the paper's pipeline without python -m.
-reconunet-generate = "reconunet.cli.generate_scenes:main"
-reconunet-train    = "reconunet.cli.train:main"
-reconunet-evaluate = "reconunet.cli.evaluate:main"
+reconunet-generate          = "reconunet.cli.generate_scenes:main"
+reconunet-train             = "reconunet.cli.train:main"
+reconunet-evaluate          = "reconunet.cli.evaluate:main"
+reconunet-evaluate-scenarios = "reconunet.cli.evaluate_scenarios:main"
 
 [project.urls]
 Paper = "https://arxiv.org/abs/placeholder-thesis-doa-01"

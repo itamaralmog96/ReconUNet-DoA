@@ -93,21 +93,38 @@ class _NativeEVDUNetAdapter(BaselineAdapter):
             _eigvals, _eigvecs, K_recon = out
         else:
             K_recon = out
-        # Number of sources to extract.  ``K_max`` from the manifest is the
-        # *upper bound* across the corpus (= 8), not the actual K per scene
-        # (= 3 for the paper config).  Picking K_max here would shrink the
-        # noise sub-space to {0}, breaking Root-MUSIC.  Use the adapter's
-        # configured K (overridable via init_cfg["K"]).
-        K = int((meta or {}).get("K", self.K))
-        # Use the exact same Root-MUSIC routine the training loop uses for
-        # val_rmspe, so eval numbers match training-time reporting.
         from reconunet.models.deep_learning.subspace_models import root_music
-        angles_deg, _, _ = root_music(K_recon, K, K_recon.shape[0])
-        # ``root_music`` returns degrees in [0°, 180°] (broadside = 90°);
-        # subtract 90° to put broadside at 0°, matching the manifest's
-        # angles_rad convention.
-        angles_rad = torch.deg2rad(angles_deg - 90.0)
-        return BaselineOutput(angles_pred=angles_rad, extras={"K_recon": K_recon})
+        K_recon_cpu = K_recon.detach().cpu()
+        B = K_recon_cpu.shape[0]
+        # Handle variable K per sample when n_sources is provided in meta.
+        n_sources = (meta or {}).get("n_sources", None)
+        if n_sources is not None and hasattr(n_sources, '__len__'):
+            import torch as _torch
+            if isinstance(n_sources, _torch.Tensor):
+                n_sources_np = n_sources.numpy()
+            else:
+                n_sources_np = np.asarray(n_sources)
+            K_max = int(n_sources_np.max())
+            if K_max == 0:
+                return BaselineOutput(
+                    angles_pred=torch.full((B, 1), float('nan')),
+                    extras={"K_recon": K_recon})
+            angles_out = torch.full((B, K_max), float('nan'))
+            for k in range(1, K_max + 1):
+                mask = (n_sources_np == k)
+                if not mask.any():
+                    continue
+                try:
+                    K_recon_k = K_recon_cpu[mask]
+                    ang_deg, _, _ = root_music(K_recon_k, k, int(mask.sum()))
+                    angles_out[mask, :k] = torch.deg2rad(ang_deg[:, :k] - 90.0)
+                except Exception:
+                    pass
+        else:
+            K = int((meta or {}).get("K", self.K))
+            angles_deg, _, _ = root_music(K_recon_cpu, K, B)
+            angles_out = torch.deg2rad(angles_deg - 90.0)
+        return BaselineOutput(angles_pred=angles_out, extras={"K_recon": K_recon})
 
     def _music_peak_pick(self, K_recon: torch.Tensor, K: int, M: int) -> torch.Tensor:
         """Classical MUSIC on a batch of complex covariance matrices."""

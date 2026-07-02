@@ -88,6 +88,7 @@ ARRAY_IMPERFECTIONS = True  # Enable array imperfections (gain/phase errors, cou
 
 # === UNET MODEL CONFIGURATION (if using UNet-based methods) ===
 UNET_MODEL_PATH = 'notebooks/evd_unet_denoising_model_20250929_015132.pth'  # Relative to Tri4Net directory
+UNET_MODEL_PATH = '/home/itamar/Documents/projects/doa-nets/experiments/runs/reconunet/checkpoints/best.pt'
 AUTOCORR_TAU = 8  # Number of time lags (must match UNet training)
 
 # === MUSIC GRID CONFIGURATION ===
