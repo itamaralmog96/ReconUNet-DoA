@@ -75,8 +75,10 @@ def main() -> int:
     sn_ad = SubspaceNetAdapter(M=4, tau=args.tau, diff_method="root_music")
     sn = sn_ad.build_model({"M": 4, "tau": args.tau, "diff_method": "root_music"})
     sn_ad.load_checkpoint(sn, str(args.subspacenet)); sn.to(dev).eval()
-    sv_init = dict(M=8, K_max=4, grid_size=121, angle_range_deg=(-60.0, 60.0),
-                   embed_dim=256, depth=6, num_heads=8)
+    # Self-configure from the checkpoint's saved training config (see
+    # compare_paper_testset.py — avoids stale hard-coded architecture).
+    sv_init = dict(torch.load(args.subvit, map_location="cpu",
+                              weights_only=False)["cfg"]["model"]["init"])
     sv_ad = SubViTAdapter(**sv_init)
     sv = sv_ad.build_model(sv_init); sv_ad.load_checkpoint(sv, str(args.subvit)); sv.to(dev).eval()
     from reconunet.cli.evaluate import _NativeEVDUNetAdapter

@@ -62,7 +62,10 @@ def main():
     sn_ad = SubspaceNetAdapter(M=4, tau=args.tau, diff_method="root_music")
     sn = sn_ad.build_model({"M":4,"tau":args.tau,"diff_method":"root_music"})
     sn_ad.load_checkpoint(sn, str(REPO/"experiments/runs/subspacenet_paper/checkpoints/best.pt")); sn.to(dev).eval()
-    svi = dict(M=8,K_max=4,grid_size=121,angle_range_deg=(-60.,60.),embed_dim=256,depth=6,num_heads=8)
+    # Self-configure from the checkpoint's saved training config (avoids stale
+    # hard-coded architecture; SubViT moved 256-dim -> published 768-dim).
+    svi = dict(torch.load(REPO/"experiments/runs/subvit_paper/checkpoints/best.pt",
+                          map_location="cpu", weights_only=False)["cfg"]["model"]["init"])
     sv_ad = SubViTAdapter(**svi); sv = sv_ad.build_model(svi)
     sv_ad.load_checkpoint(sv, str(REPO/"experiments/runs/subvit_paper/checkpoints/best.pt")); sv.to(dev).eval()
     rn_ad = _NativeEVDUNetAdapter("reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet")

@@ -87,8 +87,12 @@ def main() -> int:
     sn_model = sn_adapter.build_model({"M": 4, "tau": args.tau, "diff_method": "root_music"})
     sn_adapter.load_checkpoint(sn_model, str(args.subspacenet)); sn_model.to(dev).eval()
 
-    sv_init = dict(M=M, K_max=4, grid_size=121, angle_range_deg=(-60.0, 60.0),
-                   embed_dim=256, depth=6, num_heads=8)
+    # Self-configure from the checkpoint's saved training config so the eval
+    # always matches whatever architecture actually trained the weights
+    # (hard-coding bit us when SubViT moved from the 256-dim variant to the
+    # published 768-dim capacity).
+    sv_ck = torch.load(args.subvit, map_location="cpu", weights_only=False)
+    sv_init = dict(sv_ck["cfg"]["model"]["init"])
     sv_adapter = SubViTAdapter(**sv_init)
     sv_model = sv_adapter.build_model(sv_init)
     sv_adapter.load_checkpoint(sv_model, str(args.subvit)); sv_model.to(dev).eval()
