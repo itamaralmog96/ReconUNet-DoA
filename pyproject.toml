@@ -80,9 +80,9 @@ reconunet-evaluate          = "reconunet.cli.evaluate:main"
 reconunet-evaluate-scenarios = "reconunet.cli.evaluate_scenarios:main"
 
 [project.urls]
-Repository = "https://github.com/itamaralmog96/reconunet"
-Issues = "https://github.com/itamaralmog96/reconunet/issues"
-Results = "https://github.com/itamaralmog96/reconunet/tree/main/experiments/runs/eval_coherent_20260910"
+Repository = "https://github.com/itamaralmog96/ReconUNet-DoA"
+Issues = "https://github.com/itamaralmog96/ReconUNet-DoA/issues"
+Results = "https://github.com/itamaralmog96/ReconUNet-DoA/tree/main/experiments/runs/eval_coherent_20260910"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

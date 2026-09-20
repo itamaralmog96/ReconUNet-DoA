@@ -1,0 +1,60 @@
+# Citation metadata (Citation File Format 1.2.0).  GitHub renders this in the
+# "Cite this repository" box.  Please cite the paper (preferred-citation)
+# and, if you use the code or trained weights, this repository as well.
+cff-version: 1.2.0
+message: >-
+  If you use this code, the trained weights or the result tables, please cite
+  the paper below (preferred) and this software repository.
+type: software
+title: >-
+  ReconUNet — code, learned baselines and evaluation for "Learning to
+  Reconstruct Clean Covariance Matrix under Low SNR, Multipath, and Array
+  Imperfections"
+authors:
+  - family-names: Almog
+    given-names: Itamar
+    orcid: https://orcid.org/0009-0003-4362-7284
+    affiliation: School of Electrical Engineering, Tel Aviv University
+    email: itamar.almog@gmail.com
+  - family-names: Weiss
+    given-names: Anthony J.
+    orcid: https://orcid.org/0000-0001-7354-8219
+    affiliation: School of Electrical Engineering, Tel Aviv University
+repository-code: https://github.com/itamaralmog96/ReconUNet-DoA
+license: MIT
+version: revision-r1-baselines-20260910
+date-released: "2026-09-20"
+keywords:
+  - direction-of-arrival estimation
+  - array signal processing
+  - covariance reconstruction
+  - subspace methods
+  - MUSIC
+  - ESPRIT
+  - coherent multipath
+  - array imperfections
+  - deep learning
+  - SubspaceNet
+  - DA-MUSIC
+preferred-citation:
+  type: article
+  title: >-
+    ReconUNet: Learning to Reconstruct Clean Covariance Matrix under Low SNR,
+    Multipath, and Array Imperfections
+  authors:
+    - family-names: Almog
+      given-names: Itamar
+      orcid: https://orcid.org/0009-0003-4362-7284
+      affiliation: School of Electrical Engineering, Tel Aviv University
+    - family-names: Weiss
+      given-names: Anthony J.
+      orcid: https://orcid.org/0000-0001-7354-8219
+      affiliation: School of Electrical Engineering, Tel Aviv University
+  journal: Sensors
+  publisher:
+    name: MDPI
+  year: 2026
+  status: submitted
+  notes: >-
+    Manuscript sensors-4536109, under review (major revision). Update this
+    entry with volume, article number and DOI once published.
