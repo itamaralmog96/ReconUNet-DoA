@@ -223,9 +223,9 @@ models are published as follows; download them to the paths the evaluation scrip
 
 | Model | File to place at | Size | Where |
 |---|---|---:|---|
-| ReconUNet | `experiments/runs/reconunet_paper/checkpoints/best.pt` | 3.9 MB | GitHub Release `revision-r1-baselines-20260910` |
-| SubspaceNet | `experiments/runs/subspacenet_paper/checkpoints/best.pt` | 0.5 MB | GitHub Release `revision-r1-baselines-20260910` |
-| DA-MUSIC, K = 1..4 | `experiments/runs/damusic_paper/k<K>/checkpoints/best.pt` | 4 × 0.18 MB | GitHub Release `revision-r1-baselines-20260910` |
+| ReconUNet | `experiments/runs/reconunet_paper/checkpoints/best.pt` | 3.9 MB | GitHub Release `revision-r1-checkpoints` |
+| SubspaceNet | `experiments/runs/subspacenet_paper/checkpoints/best.pt` | 0.5 MB | GitHub Release `revision-r1-checkpoints` |
+| DA-MUSIC, K = 1..4 | `experiments/runs/damusic_paper/k<K>/checkpoints/best.pt` | 4 × 0.18 MB | GitHub Release `revision-r1-checkpoints` |
 | SubViT (42.6 M params) | `experiments/runs/subvit_paper/checkpoints/best.pt` | 512 MB | Zenodo (DOI to be added on release; too large for a GitHub Release asset without LFS) |
 
 Each `best.pt` is a dict with `model` (state dict), `cfg` (the full training YAML), `epoch`,
