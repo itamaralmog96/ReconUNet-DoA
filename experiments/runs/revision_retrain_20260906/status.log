@@ -1,0 +1,16 @@
+2026-09-06 17:07:33 PIPELINE START (pid 2475463) gpu=NVIDIA RTX 2000 Ada Generation
+2026-09-06 17:07:33 START reconunet  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/reconunet_paper.yaml)
+2026-09-06 21:55:13 END reconunet rc=0 elapsed=287min last_val_rmspe=2.022°
+2026-09-06 21:55:13 START damusic_k1  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k1.yaml)
+2026-09-07 00:32:45 END damusic_k1 rc=0 elapsed=157min last_val_rmspe=8.236°
+2026-09-07 00:32:45 START damusic_k2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k2.yaml)
+2026-09-07 04:21:21 END damusic_k2 rc=0 elapsed=228min last_val_rmspe=5.134°
+2026-09-07 04:21:21 START damusic_k3  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k3.yaml)
+2026-09-07 08:11:09 END damusic_k3 rc=0 elapsed=229min last_val_rmspe=4.595°
+2026-09-07 08:11:09 START damusic_k4  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k4.yaml)
+2026-09-07 12:02:00 END damusic_k4 rc=0 elapsed=230min last_val_rmspe=4.132°
+2026-09-07 12:02:00 START subspacenet  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/subspacenet_paper.yaml)
+2026-09-08 18:19:20 END subspacenet rc=0 elapsed=1817min last_val_rmspe=4.042°
+2026-09-08 18:19:20 START subvit  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/subvit_paper.yaml)
+2026-09-10 14:12:23 END subvit rc=0 elapsed=2633min last_val_rmspe=6.451°
+2026-09-10 14:12:23 PIPELINE DONE
