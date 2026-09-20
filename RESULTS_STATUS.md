@@ -1,6 +1,6 @@
 # Results status — revision pipeline 2026-09-20
 
-**Last update:** 2026-09-20 13:19 UTC · **pipeline process:** running · **pipeline log says:** in progress
+**Last update:** 2026-09-20 13:49 UTC · **pipeline process:** running · **pipeline log says:** in progress
 
 This page is rewritten by the auto-push watcher every 30 minutes. Links point at the files on `main`.
 
@@ -8,7 +8,7 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 
 ## ETA
 
-- `damusic_k3_v2` at epoch 415/600 after 90 min; worst case 142 more min at 46 s/epoch, sooner if early stopping (patience 25) triggers
+- `damusic_k3_v2` at epoch 454/600 after 120 min; worst case 112 more min at 46 s/epoch, sooner if early stopping (patience 25) triggers
 - Pending: 13 stages; rough worst-case remaining ≈ 290 min (0 ablation variants ≈ 0 min run two at a time → ≈ 0 min, 1 DA-MUSIC runs ≤ 230 min, evals + extras ≈ 60 min).
 
 ## Results (links)
@@ -34,7 +34,7 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 | Revision figures folder | ⏳ pending | [docs/figs_revision](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/figs_revision) |
 | Original 2026-09-10 results + HTML report | ✅ 09-10 11:25 | [experiments/runs/eval_coherent_20260910](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910) |
 | Pipeline master status log | ✅ 09-20 11:49 | [experiments/runs/revision2_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/revision2_20260920/status.log) |
-| Auto-push log | ✅ 09-20 12:49 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
+| Auto-push log | ✅ 09-20 13:19 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
 
 ## Stages
 
@@ -86,7 +86,7 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 | K | epochs so far | best epoch | best val RMSPE v2 (°) | best val RMSPE v1 (°) | current LR |
 |---|---|---|---|---|---|
 | 2 | 491 | 466 | 4.983 | 5.120 | 1.0e-06 |
-| 3 | 415 | 415 | 4.402 | 4.566 | 4.0e-06 |
+| 3 | 454 | 444 | 4.397 | 4.566 | 1.4e-06 |
 
 ## Master status log (tail)
 
