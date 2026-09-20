@@ -1,0 +1,50 @@
+# Ablation variant 06_single_lag — single-lag input (tau=1) instead of the 8-lag stack.
+# Reduced protocol (identical for every variant): fixed seeded 10 % subset of the
+# paper training corpus (subset_seed 20260920; 10 % of val for checkpoint selection),
+# 40 epochs, every other setting as configs/train/reconunet_paper.yaml.
+# Generated 2026-09-20 for the Sensors revision (reviewer items R1-3 / R2-2 / R2-3 / R3-3).
+model:
+  name: reconunet_ablation_06_single_lag
+  class_path: reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet
+  init:
+    M: 8
+    tau: 1
+    activation_type: anti_rectifier
+    use_dropout: true
+collate: reconunet
+data:
+  config: configs/data/paper_corpus.yaml
+  batch_size: 2048
+  num_workers: 6
+  pin_memory: true
+  subset_frac: 0.1
+  subset_seed: 20260920
+  val_subset_frac: 0.1
+  meta_overrides:
+    tau: 1
+optim:
+  optimizer: adam
+  lr: 0.0001
+  weight_decay: 1.0e-05
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.7
+    patience: 5
+    min_lr: 1.0e-06
+loss:
+  eigval_weight: 1.0
+  proj_weight: 1.0
+  dom_weight: 1.0
+  reconstruction_weight: 1.0
+train:
+  epochs: 40
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/ablation_20260920/06_single_lag/checkpoints/
+  tensorboard_dir: experiments/runs/ablation_20260920/06_single_lag/tb/
+  early_stopping_patience: 25
+  amp: true
+eval:
+  config: configs/eval/evaluation_config.yaml
+seed: 20260420

@@ -1,0 +1,45 @@
+# DA-MUSIC K=2 continuation (v2): the 2026-09-06 run hit the 300-epoch cap without
+# early stopping.  Exact resume (model + Adam + scheduler + best/stale) from k2/last.pt,
+# cap raised to 600 epochs, patience 25 unchanged; writes to k2_v2/ so the 20260910
+# checkpoints are never overwritten.  Generated 2026-09-20.
+model:
+  name: damusic
+  adapter_class: reconunet.models.third_party.damusic_adapter.DAMUSICAdapter
+  init:
+    N: 8
+    T: 512
+    M: 2
+    hermitian_psd: true
+    psd_eps: 1.0e-06
+collate: damusic
+data:
+  config: configs/data/paper_corpus.yaml
+  k_filter:
+  - 2
+  batch_size: 2048
+  num_workers: 8
+  pin_memory: true
+optim:
+  optimizer: adam
+  lr: 0.0001
+  weight_decay: 1.0e-05
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.7
+    patience: 5
+    min_lr: 1.0e-06
+loss:
+  rmspel_weight: 1.0
+train:
+  epochs: 600
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/damusic_paper/k2_v2/checkpoints/
+  tensorboard_dir: experiments/runs/damusic_paper/k2_v2/tb/
+  early_stopping_patience: 25
+  amp: false
+  resume_from: experiments/runs/damusic_paper/k2/checkpoints/last.pt
+eval:
+  config: configs/eval/evaluation_config.yaml
+seed: 20260420
