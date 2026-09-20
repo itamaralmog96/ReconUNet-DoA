@@ -1,15 +1,14 @@
 # Results status — revision pipeline 2026-09-20
 
-**Last update:** 2026-09-20 19:19 UTC · **pipeline process:** running · **pipeline log says:** in progress
+**Last update:** 2026-09-20 19:50 UTC · **pipeline process:** not running · **pipeline log says:** PIPELINE DONE
 
 This page is rewritten by the auto-push watcher every 30 minutes. Links point at the files on `main`.
 
-**Progress:** 13/26 stages done, 0 failed.
+**Progress:** 26/26 stages done, 0 failed.
 
 ## ETA
 
-- `damusic_k4_v2` at epoch 580/600 after 217 min; worst case 15 more min at 46 s/epoch, sooner if early stopping (patience 25) triggers
-- Pending: 12 stages; rough worst-case remaining ≈ 60 min (0 ablation variants ≈ 0 min run two at a time → ≈ 0 min, 0 DA-MUSIC runs ≤ 0 min, evals + extras ≈ 60 min).
+- - nothing running
 
 ## Results (links)
 
@@ -18,23 +17,23 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 | Ablation results (9 variants × eval sets) | ✅ 09-20 09:22 | [experiments/runs/ablation_20260920/ablation_results.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/ablation_20260920/ablation_results.csv) |
 | Route comparison (01_full, 08_no_evd_heads) | ✅ 09-20 09:22 | [experiments/runs/ablation_20260920/route_comparison.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/ablation_20260920/route_comparison.csv) |
 | Ablation status log | ✅ 09-20 09:22 | [experiments/runs/ablation_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/ablation_20260920/status.log) |
-| DA-MUSIC v2: paper test split by K | ⏳ pending | [experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_by_K.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_by_K.csv) |
-| DA-MUSIC v2: scenario sweep | ⏳ pending | [experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep.csv) |
-| DA-MUSIC v2: Table II mild | ⏳ pending | [experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_full.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_full.csv) |
-| DA-MUSIC v2: Table II harsh | ⏳ pending | [experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_full.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_full.csv) |
-| Bootstrap CIs: Table II mild | ⏳ pending | [experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv) |
-| Bootstrap CIs: Table II harsh | ⏳ pending | [experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_harsh_v2_ci.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_harsh_v2_ci.csv) |
-| Bootstrap CIs: scenario sweep | ⏳ pending | [experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep_v2_ci.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep_v2_ci.csv) |
-| Bootstrap CIs: paper test split | ⏳ pending | [experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_v2_ci.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_v2_ci.csv) |
-| Snapshot sweep | ⏳ pending | [experiments/runs/sweeps_20260920/snapshot_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/snapshot_sweep.csv) |
-| Separation sweep | ⏳ pending | [experiments/runs/sweeps_20260920/separation_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/separation_sweep.csv) |
-| FBSS baseline | ⏳ pending | [experiments/runs/sweeps_20260920/fbss_baseline.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/fbss_baseline.csv) |
-| MUSIC verification | ⏳ pending | [experiments/runs/sweeps_20260920/music_verification.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/music_verification.csv) |
-| Revision facts (docs/revision_facts.md) | ✅ 09-20 09:22 | [docs/revision_facts.md](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_facts.md) |
-| Revision figures folder | ⏳ pending | [docs/figs_revision](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/figs_revision) |
-| Original 2026-09-10 results + HTML report | ✅ 09-10 11:25 | [experiments/runs/eval_coherent_20260910](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910) |
-| Pipeline master status log | ✅ 09-20 15:42 | [experiments/runs/revision2_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/revision2_20260920/status.log) |
-| Auto-push log | ✅ 09-20 18:49 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
+| DA-MUSIC v2: paper test split by K | ✅ 09-20 19:21 | [experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_by_K.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_by_K.csv) |
+| DA-MUSIC v2: scenario sweep | ✅ 09-20 19:22 | [experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep.csv) |
+| DA-MUSIC v2: Table II mild | ✅ 09-20 19:24 | [experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_full.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_full.csv) |
+| DA-MUSIC v2: Table II harsh | ✅ 09-20 19:26 | [experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_full.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_full.csv) |
+| Bootstrap CIs: Table II mild | ✅ 09-20 19:27 | [experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv) |
+| Bootstrap CIs: Table II harsh | ✅ 09-20 19:27 | [experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_harsh_v2_ci.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_harsh_v2_ci.csv) |
+| Bootstrap CIs: scenario sweep | ✅ 09-20 19:27 | [experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep_v2_ci.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep_v2_ci.csv) |
+| Bootstrap CIs: paper test split | ✅ 09-20 19:27 | [experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_v2_ci.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_v2_ci.csv) |
+| Snapshot sweep | ✅ 09-20 19:27 | [experiments/runs/sweeps_20260920/snapshot_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/snapshot_sweep.csv) |
+| Separation sweep | ✅ 09-20 19:27 | [experiments/runs/sweeps_20260920/separation_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/separation_sweep.csv) |
+| FBSS baseline | ✅ 09-20 19:28 | [experiments/runs/sweeps_20260920/fbss_baseline.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/fbss_baseline.csv) |
+| MUSIC verification | ✅ 09-20 19:28 | [experiments/runs/sweeps_20260920/music_verification.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/music_verification.csv) |
+| Revision facts (docs/revision_facts.md) | ✅ 09-20 19:28 | [docs/revision_facts.md](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_facts.md) |
+| Revision figures folder | ✅ 09-20 19:28 | [docs/figs_revision](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/figs_revision) |
+| Original 2026-09-10 results + HTML report | ✅ 09-20 19:24 | [experiments/runs/eval_coherent_20260910](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910) |
+| Pipeline master status log | ✅ 09-20 19:28 | [experiments/runs/revision2_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/revision2_20260920/status.log) |
+| Auto-push log | ✅ 09-20 19:20 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
 
 ## Stages
 
@@ -53,19 +52,19 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 | `facts_ablation` | Append ablation numbers to revision_facts.md | ✅ done | 2026-09-20 09:22:15 | 2026-09-20 09:22:17 | 0min |
 | `damusic_k2_v2` | DA-MUSIC K=2 continuation (≤600 epochs) | ✅ done | 2026-09-20 09:22:17 | 2026-09-20 11:49:26 | 147min |
 | `damusic_k3_v2` | DA-MUSIC K=3 continuation (≤600 epochs) | ✅ done | 2026-09-20 11:49:26 | 2026-09-20 15:42:54 | 233min |
-| `damusic_k4_v2` | DA-MUSIC K=4 continuation (≤600 epochs) | 🔄 running | 2026-09-20 15:42:54 |  |  |
-| `eval_paper_testset_v2` | Eval v2: paper test split | ⏳ pending |  |  |  |
-| `eval_scenario_sweep_v2` | Eval v2: scenario sweep | ⏳ pending |  |  |  |
-| `eval_table2_mild_v2` | Eval v2: Table II mild | ⏳ pending |  |  |  |
-| `eval_table2_harsh_v2` | Eval v2: Table II harsh | ⏳ pending |  |  |  |
-| `facts_damusic` | Append DA-MUSIC v2 numbers to revision_facts.md | ⏳ pending |  |  |  |
-| `bootstrap_ci` | Bootstrap 95 % CIs (*_ci.csv) | ⏳ pending |  |  |  |
-| `snapshot_sweep` | Snapshot sweep T ∈ {8…512} | ⏳ pending |  |  |  |
-| `separation_sweep` | Separation sweep Δθ ∈ {2…15}° | ⏳ pending |  |  |  |
-| `fbss_baseline` | FBSS Root-MUSIC baseline | ⏳ pending |  |  |  |
-| `revision_figures` | Revision figures (vector PDF) | ⏳ pending |  |  |  |
-| `music_verification` | Grid-MUSIC verification | ⏳ pending |  |  |  |
-| `facts_extras` | Append sweep/FBSS numbers to revision_facts.md | ⏳ pending |  |  |  |
+| `damusic_k4_v2` | DA-MUSIC K=4 continuation (≤600 epochs) | ✅ done | 2026-09-20 15:42:54 | 2026-09-20 19:21:18 | 218min |
+| `eval_paper_testset_v2` | Eval v2: paper test split | ✅ done | 2026-09-20 19:21:18 | 2026-09-20 19:21:43 | 0min |
+| `eval_scenario_sweep_v2` | Eval v2: scenario sweep | ✅ done | 2026-09-20 19:21:43 | 2026-09-20 19:22:48 | 1min |
+| `eval_table2_mild_v2` | Eval v2: Table II mild | ✅ done | 2026-09-20 19:22:48 | 2026-09-20 19:24:54 | 2min |
+| `eval_table2_harsh_v2` | Eval v2: Table II harsh | ✅ done | 2026-09-20 19:24:54 | 2026-09-20 19:26:59 | 2min |
+| `facts_damusic` | Append DA-MUSIC v2 numbers to revision_facts.md | ✅ done | 2026-09-20 19:26:59 | 2026-09-20 19:27:02 | 0min |
+| `bootstrap_ci` | Bootstrap 95 % CIs (*_ci.csv) | ✅ done | 2026-09-20 19:27:02 | 2026-09-20 19:27:23 | 0min |
+| `snapshot_sweep` | Snapshot sweep T ∈ {8…512} | ✅ done | 2026-09-20 19:27:23 | 2026-09-20 19:27:36 | 0min |
+| `separation_sweep` | Separation sweep Δθ ∈ {2…15}° | ✅ done | 2026-09-20 19:27:36 | 2026-09-20 19:27:52 | 0min |
+| `fbss_baseline` | FBSS Root-MUSIC baseline | ✅ done | 2026-09-20 19:27:52 | 2026-09-20 19:28:07 | 0min |
+| `revision_figures` | Revision figures (vector PDF) | ✅ done | 2026-09-20 19:28:07 | 2026-09-20 19:28:15 | 0min |
+| `music_verification` | Grid-MUSIC verification | ✅ done | 2026-09-20 19:28:15 | 2026-09-20 19:28:19 | 0min |
+| `facts_extras` | Append sweep/FBSS numbers to revision_facts.md | ✅ done | 2026-09-20 19:28:19 | 2026-09-20 19:28:23 | 0min |
 
 ## Latest numbers: ablation on the paper test split (pooled RMSE °, median RMSPE °, rel. cov. error, subspace dist, eigengap err)
 
@@ -87,21 +86,21 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 |---|---|---|---|---|---|
 | 2 | 491 | 466 | 4.983 | 5.120 | 1.0e-06 |
 | 3 | 600 | 595 | 4.390 | 4.566 | 1.0e-06 |
-| 4 | 580 | 557 | 3.889 | 4.132 | 1.0e-06 |
+| 4 | 582 | 557 | 3.889 | 4.132 | 1.0e-06 |
 
 ## Master status log (tail)
 
 ```
-2026-09-20 09:20:12 END abl_train_09_fixed_imperf rc=0 elapsed=15min
-2026-09-20 09:20:12 START abl_eval  (DOA_env/bin/python scripts/analysis/ablation_eval.py --ablation-dir experiments/runs/ablation_20260920)
-2026-09-20 09:22:15 END abl_eval rc=0 elapsed=2min
-2026-09-20 09:22:15 START facts_ablation  (bash -c 
-  DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Ablation — reduced protocol (10 % seeded subset, 40 epochs), Root-MUSIC back end' --csv experiments/runs/ablation_20260920/ablation_results.csv      --note 'Columns: pooled RMSE (paper eq. 31), median per-scene RMSPE, relative covariance error ||R_hat-R*||_F/||R*||_F, leading-K projector distance ||P_hat-P*||_F, relative eigengap error |gap_hat-gap*|/gap* (all from eigh(R_hat)); eval sets: paper test split (3000 scenes per K), Moderate and Crowded at 0 dB (1000 scenes), and for 01/09 the paper test split rendered with the single fixed imperfection realisation used to train 09.' &&
-  DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Route comparison — covariance route (eigh of R_hat) vs subspace route (EVD-head eigenvectors)' --csv experiments/runs/ablation_20260920/route_comparison.csv)
-2026-09-20 09:22:17 END facts_ablation rc=0 elapsed=0min
-2026-09-20 09:22:17 START damusic_k2_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k2_v2.yaml)
-2026-09-20 11:49:26 END damusic_k2_v2 rc=0 elapsed=147min
-2026-09-20 11:49:26 START damusic_k3_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k3_v2.yaml)
-2026-09-20 15:42:54 END damusic_k3_v2 rc=0 elapsed=233min
-2026-09-20 15:42:54 START damusic_k4_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k4_v2.yaml)
+2026-09-20 19:28:07 START revision_figures  (DOA_env/bin/python scripts/analysis/revision_figures.py)
+2026-09-20 19:28:15 END revision_figures rc=0 elapsed=0min
+2026-09-20 19:28:15 START music_verification  (bash -c DOA_env/bin/python scripts/analysis/music_verification.py -o experiments/runs/sweeps_20260920 > experiments/runs/sweeps_20260920/music_verification.md && DOA_env/bin/python scripts/analysis/revision_facts.py append-md --title 'MUSIC verification' --md experiments/runs/sweeps_20260920/music_verification.md)
+2026-09-20 19:28:19 END music_verification rc=0 elapsed=0min
+2026-09-20 19:28:19 START facts_extras  (bash -c 
+  [ -f experiments/runs/sweeps_20260920/fbss_baseline.csv ]     && DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'FBSS Root-MUSIC baseline at 0 dB (Moderate, Crowded; mild)' --csv experiments/runs/sweeps_20260920/fbss_baseline.csv --filter snr_db=0.0;
+  [ -f experiments/runs/sweeps_20260920/snapshot_sweep.csv ]    && DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Snapshot sweep, Moderate at 0 dB' --csv experiments/runs/sweeps_20260920/snapshot_sweep.csv;
+  [ -f experiments/runs/sweeps_20260920/separation_sweep.csv ]  && DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Separation sweep, K=2 at 0 and −5 dB (RMSE, median, resolution probability)' --csv experiments/runs/sweeps_20260920/separation_sweep.csv;
+  [ -f experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv ] && DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Bootstrap 95 % CIs, Table II mild at 0 dB' --csv experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv --filter snr_db=0.0 --cols scenario,method,n_scenes,rmse_deg,rmse_ci_lo,rmse_ci_hi,median_rmspe_deg,median_ci_lo,median_ci_hi;
+  true)
+2026-09-20 19:28:23 END facts_extras rc=0 elapsed=0min
+2026-09-20 19:28:23 PIPELINE DONE
 ```

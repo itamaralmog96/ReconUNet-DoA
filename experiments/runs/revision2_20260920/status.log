@@ -28,3 +28,41 @@
 2026-09-20 11:49:26 START damusic_k3_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k3_v2.yaml)
 2026-09-20 15:42:54 END damusic_k3_v2 rc=0 elapsed=233min
 2026-09-20 15:42:54 START damusic_k4_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k4_v2.yaml)
+2026-09-20 19:21:18 END damusic_k4_v2 rc=0 elapsed=218min
+2026-09-20 19:21:18 START eval_paper_testset_v2  (DOA_env/bin/python scripts/analysis/compare_paper_testset.py -o experiments/runs/eval_coherent_20260910/paper_testset_v2 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --dump-errors experiments/runs/eval_coherent_20260910/paper_testset_v2/errors.npz)
+2026-09-20 19:21:43 END eval_paper_testset_v2 rc=0 elapsed=0min
+2026-09-20 19:21:43 START eval_scenario_sweep_v2  (DOA_env/bin/python scripts/analysis/scenario_sweep.py -o experiments/runs/eval_coherent_20260910/scenario_sweep_v2 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --dump-errors experiments/runs/eval_coherent_20260910/scenario_sweep_v2/errors.npz)
+2026-09-20 19:22:48 END eval_scenario_sweep_v2 rc=0 elapsed=1min
+2026-09-20 19:22:48 START eval_table2_mild_v2  (DOA_env/bin/python scripts/analysis/reproduce_table2.py -o experiments/runs/eval_coherent_20260910/table2_mild_v2 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --dump-errors experiments/runs/eval_coherent_20260910/table2_mild_v2/errors.npz)
+2026-09-20 19:24:54 END eval_table2_mild_v2 rc=0 elapsed=2min
+2026-09-20 19:24:54 START eval_table2_harsh_v2  (DOA_env/bin/python scripts/analysis/reproduce_table2.py -o experiments/runs/eval_coherent_20260910/table2_harsh_v2 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --dump-errors experiments/runs/eval_coherent_20260910/table2_harsh_v2/errors.npz --scenarios-root data/scenes/scenarios_harsh)
+2026-09-20 19:26:59 END eval_table2_harsh_v2 rc=0 elapsed=2min
+2026-09-20 19:26:59 START facts_damusic  (bash -c 
+  DOA_env/bin/python scripts/analysis/revision_facts.py append-history --title 'DA-MUSIC K=2,3,4 continuation to 600 epochs' --runs k2_v2 k3_v2 k4_v2 &&
+  DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Paper test split with the DA-MUSIC v2 ensemble (pooled RMSE / median per K, all methods)' --csv experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_by_K.csv &&
+  DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Table II (mild) at 0 dB with the DA-MUSIC v2 ensemble' --csv experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_full.csv --filter snr_db=0.0 &&
+  DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Table II (harsh) at 0 dB with the DA-MUSIC v2 ensemble' --csv experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_full.csv --filter snr_db=0.0)
+2026-09-20 19:27:02 END facts_damusic rc=0 elapsed=0min
+2026-09-20 19:27:02 START bootstrap_ci  (bash -c 
+  for d in paper_testset_v2 scenario_sweep_v2 table2_mild_v2 table2_harsh_v2; do
+    [ -f experiments/runs/eval_coherent_20260910/$d/errors.npz ] && DOA_env/bin/python scripts/analysis/bootstrap_ci.py experiments/runs/eval_coherent_20260910/$d/errors.npz -o experiments/runs/eval_coherent_20260910/$d/${d}_ci.csv --table $d || echo "skip $d"
+  done; true)
+2026-09-20 19:27:23 END bootstrap_ci rc=0 elapsed=0min
+2026-09-20 19:27:23 START snapshot_sweep  (DOA_env/bin/python scripts/analysis/snapshot_sweep.py -o experiments/runs/sweeps_20260920)
+2026-09-20 19:27:36 END snapshot_sweep rc=0 elapsed=0min
+2026-09-20 19:27:36 START separation_sweep  (DOA_env/bin/python scripts/analysis/separation_sweep.py -o experiments/runs/sweeps_20260920)
+2026-09-20 19:27:52 END separation_sweep rc=0 elapsed=0min
+2026-09-20 19:27:52 START fbss_baseline  (DOA_env/bin/python scripts/analysis/fbss_baseline.py -o experiments/runs/sweeps_20260920)
+2026-09-20 19:28:07 END fbss_baseline rc=0 elapsed=0min
+2026-09-20 19:28:07 START revision_figures  (DOA_env/bin/python scripts/analysis/revision_figures.py)
+2026-09-20 19:28:15 END revision_figures rc=0 elapsed=0min
+2026-09-20 19:28:15 START music_verification  (bash -c DOA_env/bin/python scripts/analysis/music_verification.py -o experiments/runs/sweeps_20260920 > experiments/runs/sweeps_20260920/music_verification.md && DOA_env/bin/python scripts/analysis/revision_facts.py append-md --title 'MUSIC verification' --md experiments/runs/sweeps_20260920/music_verification.md)
+2026-09-20 19:28:19 END music_verification rc=0 elapsed=0min
+2026-09-20 19:28:19 START facts_extras  (bash -c 
+  [ -f experiments/runs/sweeps_20260920/fbss_baseline.csv ]     && DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'FBSS Root-MUSIC baseline at 0 dB (Moderate, Crowded; mild)' --csv experiments/runs/sweeps_20260920/fbss_baseline.csv --filter snr_db=0.0;
+  [ -f experiments/runs/sweeps_20260920/snapshot_sweep.csv ]    && DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Snapshot sweep, Moderate at 0 dB' --csv experiments/runs/sweeps_20260920/snapshot_sweep.csv;
+  [ -f experiments/runs/sweeps_20260920/separation_sweep.csv ]  && DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Separation sweep, K=2 at 0 and −5 dB (RMSE, median, resolution probability)' --csv experiments/runs/sweeps_20260920/separation_sweep.csv;
+  [ -f experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv ] && DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Bootstrap 95 % CIs, Table II mild at 0 dB' --csv experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv --filter snr_db=0.0 --cols scenario,method,n_scenes,rmse_deg,rmse_ci_lo,rmse_ci_hi,median_rmspe_deg,median_ci_lo,median_ci_hi;
+  true)
+2026-09-20 19:28:23 END facts_extras rc=0 elapsed=0min
+2026-09-20 19:28:23 PIPELINE DONE

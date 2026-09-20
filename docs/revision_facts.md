@@ -319,3 +319,330 @@ _Appended 2026-09-20 09:22 UTC from `experiments/runs/ablation_20260920/route_co
 | 08_no_evd_heads | moderate_0dB | subspace | 1024 | 1.892 | 0.520 | 0.063 | 0.000 | 1000 | no EVD heads: eigenvectors from eigh(R_hat); routes coincide by construction |
 | 08_no_evd_heads | moderate_0dB | covariance | 1 |  |  | 1.169 |  | 256 | batch-1 latency only |
 | 08_no_evd_heads | moderate_0dB | subspace | 1 |  |  | 1.067 |  | 256 | batch-1 latency only |
+
+## DA-MUSIC K=2,3,4 continuation to 600 epochs
+
+_Appended 2026-09-20 19:26 UTC._
+
+Exact continuation of the K = 2, 3, 4 runs from their epoch-300 `last.pt` (model, Adam moments, scheduler, best/stale restored), cap 600 epochs, patience 25; checkpoints under `experiments/runs/damusic_paper/k<K>_v2/`.
+
+| run | epochs_run | best_epoch(val loss) | val_rmspe_at_best(deg) | last_val_rmspe(deg) | last_lr | min_val_rmspe(deg) | v1 (300-epoch cap) val RMSPE at best |
+|---|---|---|---|---|---|---|---|
+| k2_v2 | 491 | 466 | 4.983 | 4.975 | 1.0e-06 | 4.973 | 5.12 |
+| k3_v2 | 600 | 595 | 4.39 | 4.388 | 1.0e-06 | 4.388 | 4.566 |
+| k4_v2 | 582 | 557 | 3.889 | 3.888 | 1.0e-06 | 3.888 | 4.132 |
+
+## Paper test split with the DA-MUSIC v2 ensemble (pooled RMSE / median per K, all methods)
+
+_Appended 2026-09-20 19:27 UTC from `experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_by_K.csv`._
+
+| K | n | R-MUSIC_med | R-MUSIC_mean | ESPRIT_med | ESPRIT_mean | SubspaceNet_med | SubspaceNet_mean | SubViT_med | SubViT_mean | DA-MUSIC_med | DA-MUSIC_mean | ReconUNet_med | ReconUNet_mean |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 3000 | 1.142 | 26.366 | 4.938 | 23.446 | 1.416 | 13.616 | 0.527 | 13.867 | 4.087 | 16.250 | 0.749 | 12.494 |
+| 2 | 3000 | 0.792 | 14.206 | 2.602 | 12.490 | 1.435 | 8.168 | 0.531 | 15.236 | 2.903 | 8.312 | 0.838 | 6.044 |
+| 3 | 3000 | 0.766 | 9.708 | 1.819 | 8.788 | 1.737 | 7.568 | 0.594 | 15.917 | 3.150 | 6.380 | 0.983 | 3.728 |
+| 4 | 3000 | 0.673 | 6.409 | 1.146 | 5.411 | 2.063 | 7.244 | 0.671 | 14.309 | 3.051 | 5.043 | 1.119 | 3.999 |
+| all | 12000 | 0.799 | 12.433 | 2.152 | 11.002 | 1.703 | 8.370 | 0.578 | 14.952 | 3.175 | 7.913 | 0.943 | 5.786 |
+
+## Table II (mild) at 0 dB with the DA-MUSIC v2 ensemble
+
+_Appended 2026-09-20 19:27 UTC from `experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_full.csv` (snr_db=0.0)._
+
+| scenario | snr_db | method | rmse_deg | n |
+|---|---|---|---|---|
+| basic | 0.000 | Bartlett | 3.964 | 1000 |
+| basic | 0.000 | MVDR | 3.561 | 1000 |
+| basic | 0.000 | MUSIC | 3.972 | 1000 |
+| basic | 0.000 | Root-MUSIC | 0.251 | 1000 |
+| basic | 0.000 | ESPRIT | 0.332 | 1000 |
+| basic | 0.000 | Unitary-ESPRIT | 0.406 | 1000 |
+| basic | 0.000 | ReconUNet+Root-MUSIC | 0.373 | 1000 |
+| basic | 0.000 | ReconUNet+MUSIC | 0.422 | 1000 |
+| basic | 0.000 | ReconUNet+ESPRIT | 0.398 | 1000 |
+| basic | 0.000 | ReconUNet+Unitary-ESPRIT | 0.408 | 1000 |
+| basic | 0.000 | SubspaceNet | 0.540 | 1000 |
+| basic | 0.000 | SubViT | 0.380 | 1000 |
+| basic | 0.000 | DA-MUSIC | 2.134 | 1000 |
+| basic | 0.000 | CRLB | 0.120 | 1000 |
+| moderate | 0.000 | Bartlett | 12.917 | 1000 |
+| moderate | 0.000 | MVDR | 11.528 | 1000 |
+| moderate | 0.000 | MUSIC | 10.391 | 1000 |
+| moderate | 0.000 | Root-MUSIC | 5.915 | 1000 |
+| moderate | 0.000 | ESPRIT | 5.938 | 1000 |
+| moderate | 0.000 | Unitary-ESPRIT | 5.691 | 1000 |
+| moderate | 0.000 | ReconUNet+Root-MUSIC | 1.790 | 1000 |
+| moderate | 0.000 | ReconUNet+MUSIC | 4.033 | 1000 |
+| moderate | 0.000 | ReconUNet+ESPRIT | 1.776 | 1000 |
+| moderate | 0.000 | ReconUNet+Unitary-ESPRIT | 2.630 | 1000 |
+| moderate | 0.000 | SubspaceNet | 2.918 | 1000 |
+| moderate | 0.000 | SubViT | 8.724 | 1000 |
+| moderate | 0.000 | DA-MUSIC | 3.600 | 1000 |
+| moderate | 0.000 | CRLB | 0.137 | 1000 |
+| advanced1_ood | 0.000 | Bartlett | 28.718 | 1000 |
+| advanced1_ood | 0.000 | MVDR | 25.060 | 1000 |
+| advanced1_ood | 0.000 | MUSIC | 29.926 | 1000 |
+| advanced1_ood | 0.000 | Root-MUSIC | 40.950 | 1000 |
+| advanced1_ood | 0.000 | ESPRIT | 35.720 | 1000 |
+| advanced1_ood | 0.000 | Unitary-ESPRIT | 24.296 | 1000 |
+| advanced1_ood | 0.000 | ReconUNet+Root-MUSIC | 22.889 | 1000 |
+| advanced1_ood | 0.000 | ReconUNet+MUSIC | 22.889 | 1000 |
+| advanced1_ood | 0.000 | ReconUNet+ESPRIT | 24.196 | 1000 |
+| advanced1_ood | 0.000 | ReconUNet+Unitary-ESPRIT | 21.327 | 1000 |
+| advanced1_ood | 0.000 | SubspaceNet | 21.495 | 1000 |
+| advanced1_ood | 0.000 | SubViT | 23.599 | 1000 |
+| advanced1_ood | 0.000 | DA-MUSIC | 24.276 | 1000 |
+| advanced1_ood | 0.000 | CRLB | 0.120 | 1000 |
+| advanced2_crowded | 0.000 | Bartlett | 21.003 | 1000 |
+| advanced2_crowded | 0.000 | MVDR | 15.723 | 1000 |
+| advanced2_crowded | 0.000 | MUSIC | 12.561 | 1000 |
+| advanced2_crowded | 0.000 | Root-MUSIC | 8.871 | 1000 |
+| advanced2_crowded | 0.000 | ESPRIT | 8.145 | 1000 |
+| advanced2_crowded | 0.000 | Unitary-ESPRIT | 8.044 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+Root-MUSIC | 4.804 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+MUSIC | 8.162 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+ESPRIT | 4.613 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+Unitary-ESPRIT | 4.005 | 1000 |
+| advanced2_crowded | 0.000 | SubspaceNet | 7.912 | 1000 |
+| advanced2_crowded | 0.000 | SubViT | 16.321 | 1000 |
+| advanced2_crowded | 0.000 | DA-MUSIC | 6.652 | 1000 |
+| advanced2_crowded | 0.000 | CRLB | 0.210 | 1000 |
+
+## Table II (harsh) at 0 dB with the DA-MUSIC v2 ensemble
+
+_Appended 2026-09-20 19:27 UTC from `experiments/runs/eval_coherent_20260910/table2_harsh_v2/table2_full.csv` (snr_db=0.0)._
+
+| scenario | snr_db | method | rmse_deg | n |
+|---|---|---|---|---|
+| basic | 0.000 | Bartlett | 6.140 | 1000 |
+| basic | 0.000 | MVDR | 5.906 | 1000 |
+| basic | 0.000 | MUSIC | 5.734 | 1000 |
+| basic | 0.000 | Root-MUSIC | 1.149 | 1000 |
+| basic | 0.000 | ESPRIT | 1.579 | 1000 |
+| basic | 0.000 | Unitary-ESPRIT | 3.645 | 1000 |
+| basic | 0.000 | ReconUNet+Root-MUSIC | 1.203 | 1000 |
+| basic | 0.000 | ReconUNet+MUSIC | 1.211 | 1000 |
+| basic | 0.000 | ReconUNet+ESPRIT | 1.210 | 1000 |
+| basic | 0.000 | ReconUNet+Unitary-ESPRIT | 1.216 | 1000 |
+| basic | 0.000 | SubspaceNet | 1.282 | 1000 |
+| basic | 0.000 | SubViT | 1.216 | 1000 |
+| basic | 0.000 | DA-MUSIC | 2.744 | 1000 |
+| basic | 0.000 | CRLB | 0.120 | 1000 |
+| moderate | 0.000 | Bartlett | 14.500 | 1000 |
+| moderate | 0.000 | MVDR | 12.275 | 1000 |
+| moderate | 0.000 | MUSIC | 11.699 | 1000 |
+| moderate | 0.000 | Root-MUSIC | 6.827 | 1000 |
+| moderate | 0.000 | ESPRIT | 6.201 | 1000 |
+| moderate | 0.000 | Unitary-ESPRIT | 6.760 | 1000 |
+| moderate | 0.000 | ReconUNet+Root-MUSIC | 2.357 | 1000 |
+| moderate | 0.000 | ReconUNet+MUSIC | 5.402 | 1000 |
+| moderate | 0.000 | ReconUNet+ESPRIT | 2.194 | 1000 |
+| moderate | 0.000 | ReconUNet+Unitary-ESPRIT | 3.018 | 1000 |
+| moderate | 0.000 | SubspaceNet | 4.734 | 1000 |
+| moderate | 0.000 | SubViT | 14.851 | 1000 |
+| moderate | 0.000 | DA-MUSIC | 4.585 | 1000 |
+| moderate | 0.000 | CRLB | 0.137 | 1000 |
+| advanced1_ood | 0.000 | Bartlett | 30.220 | 1000 |
+| advanced1_ood | 0.000 | MVDR | 27.974 | 1000 |
+| advanced1_ood | 0.000 | MUSIC | 30.670 | 1000 |
+| advanced1_ood | 0.000 | Root-MUSIC | 41.958 | 1000 |
+| advanced1_ood | 0.000 | ESPRIT | 38.633 | 1000 |
+| advanced1_ood | 0.000 | Unitary-ESPRIT | 25.550 | 1000 |
+| advanced1_ood | 0.000 | ReconUNet+Root-MUSIC | 25.307 | 1000 |
+| advanced1_ood | 0.000 | ReconUNet+MUSIC | 25.298 | 1000 |
+| advanced1_ood | 0.000 | ReconUNet+ESPRIT | 26.989 | 1000 |
+| advanced1_ood | 0.000 | ReconUNet+Unitary-ESPRIT | 23.794 | 1000 |
+| advanced1_ood | 0.000 | SubspaceNet | 23.245 | 1000 |
+| advanced1_ood | 0.000 | SubViT | 26.097 | 1000 |
+| advanced1_ood | 0.000 | DA-MUSIC | 25.522 | 1000 |
+| advanced1_ood | 0.000 | CRLB | 0.120 | 1000 |
+| advanced2_crowded | 0.000 | Bartlett | 21.828 | 1000 |
+| advanced2_crowded | 0.000 | MVDR | 18.253 | 1000 |
+| advanced2_crowded | 0.000 | MUSIC | 15.558 | 1000 |
+| advanced2_crowded | 0.000 | Root-MUSIC | 9.342 | 1000 |
+| advanced2_crowded | 0.000 | ESPRIT | 8.390 | 1000 |
+| advanced2_crowded | 0.000 | Unitary-ESPRIT | 9.072 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+Root-MUSIC | 6.136 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+MUSIC | 9.151 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+ESPRIT | 5.410 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+Unitary-ESPRIT | 4.931 | 1000 |
+| advanced2_crowded | 0.000 | SubspaceNet | 8.823 | 1000 |
+| advanced2_crowded | 0.000 | SubViT | 18.420 | 1000 |
+| advanced2_crowded | 0.000 | DA-MUSIC | 7.503 | 1000 |
+| advanced2_crowded | 0.000 | CRLB | 0.210 | 1000 |
+
+## MUSIC verification
+
+_Appended 2026-09-20 19:28 UTC._
+
+Basic scenario (K = 1, no multipath, mild imperfections), 1000 scenes per SNR. MUSIC uses the paper's 1° scan grid on [-60°, 60°]; 'refined' adds the three-point parabolic peak refinement; Root-MUSIC is gridless. A spurious peak is a scene whose selected maximum is more than 1°/3°/5° from the true angle.
+
+| SNR (dB) | estimator | median abs err (°) | pooled RMSE (°) | mean abs err (°) | frac > 1° | frac > 3° | frac > 5° | n |
+|---|---|---|---|---|---|---|---|---|
+| 20 | MUSIC-grid | 0.269 | 0.371 | 0.305 | 0.0020 | 0.0000 | 0.0000 | 1000 |
+| 20 | MUSIC-refined | 0.192 | 5.302 | 0.561 | 0.0060 | 0.0060 | 0.0060 | 1000 |
+| 20 | Root-MUSIC | 0.147 | 0.229 | 0.182 | 0.0000 | 0.0000 | 0.0000 | 1000 |
+| 0 | MUSIC-grid | 0.270 | 0.380 | 0.310 | 0.0060 | 0.0000 | 0.0000 | 1000 |
+| 0 | MUSIC-refined | 0.188 | 3.972 | 0.450 | 0.0060 | 0.0050 | 0.0050 | 1000 |
+| 0 | Root-MUSIC | 0.163 | 0.251 | 0.198 | 0.0000 | 0.0000 | 0.0000 | 1000 |
+
+Reading: at 20 dB the refined grid-MUSIC median error is 0.192° against 0.147° for Root-MUSIC, i.e. the estimator itself is fine; the pooled RMSE gap (5.302° vs 0.229°) is driven by the 0.60 % of scenes whose selected peak is spurious (> 3°), which RMSE squares. Without refinement the grid alone contributes a 0.269° median quantisation error.
+
+Data: `experiments/runs/sweeps_20260920/music_verification.csv`.
+
+## FBSS Root-MUSIC baseline at 0 dB (Moderate, Crowded; mild)
+
+_Appended 2026-09-20 19:28 UTC from `experiments/runs/sweeps_20260920/fbss_baseline.csv` (snr_db=0.0)._
+
+| scenario | snr_db | method | rmse_deg | median_rmspe_deg | n |
+|---|---|---|---|---|---|
+| moderate | 0.000 | Root-MUSIC | 5.915 | 0.486 | 1000 |
+| moderate | 0.000 | ReconUNet+Root-MUSIC | 1.790 | 0.616 | 1000 |
+| moderate | 0.000 | FBSS(L=5)+Root-MUSIC | 8.536 | 0.888 | 1000 |
+| moderate | 0.000 | FBSS(L=6)+Root-MUSIC | 6.450 | 0.664 | 1000 |
+| moderate | 0.000 | FBSS(L=7)+Root-MUSIC | 6.312 | 0.609 | 1000 |
+| advanced2_crowded | 0.000 | Root-MUSIC | 8.871 | 1.291 | 1000 |
+| advanced2_crowded | 0.000 | ReconUNet+Root-MUSIC | 4.804 | 1.430 | 1000 |
+| advanced2_crowded | 0.000 | FBSS(L=5)+Root-MUSIC | 12.420 | 4.697 | 1000 |
+| advanced2_crowded | 0.000 | FBSS(L=6)+Root-MUSIC | 11.304 | 3.129 | 1000 |
+| advanced2_crowded | 0.000 | FBSS(L=7)+Root-MUSIC | 9.610 | 2.225 | 1000 |
+
+## Snapshot sweep, Moderate at 0 dB
+
+_Appended 2026-09-20 19:28 UTC from `experiments/runs/sweeps_20260920/snapshot_sweep.csv`._
+
+| T | sampling | method | rmse_deg | median_rmspe_deg | n |
+|---|---|---|---|---|---|
+| 8 | window | Root-MUSIC | 27.038 | 13.711 | 1000 |
+| 8 | window | ReconUNet |  |  | 0 |
+| 8 | window | SubspaceNet |  |  | 0 |
+| 8 | both | CRLB | 1.661 |  | 1000 |
+| 8 | decimated | Root-MUSIC | 8.302 | 1.260 | 1000 |
+| 8 | decimated | ReconUNet |  |  | 0 |
+| 8 | decimated | SubspaceNet |  |  | 0 |
+| 16 | window | Root-MUSIC | 20.592 | 2.458 | 1000 |
+| 16 | window | ReconUNet | 25.941 | 17.300 | 1000 |
+| 16 | window | SubspaceNet | 21.481 | 9.916 | 1000 |
+| 16 | both | CRLB | 0.831 |  | 1000 |
+| 16 | decimated | Root-MUSIC | 7.718 | 0.906 | 1000 |
+| 16 | decimated | ReconUNet | 34.192 | 27.631 | 1000 |
+| 16 | decimated | SubspaceNet | 23.058 | 10.677 | 1000 |
+| 32 | window | Root-MUSIC | 11.931 | 1.161 | 1000 |
+| 32 | window | ReconUNet | 20.403 | 3.149 | 1000 |
+| 32 | window | SubspaceNet | 17.576 | 3.970 | 1000 |
+| 32 | both | CRLB | 0.415 |  | 1000 |
+| 32 | decimated | Root-MUSIC | 5.944 | 0.716 | 1000 |
+| 32 | decimated | ReconUNet | 29.470 | 23.286 | 1000 |
+| 32 | decimated | SubspaceNet | 15.684 | 3.820 | 1000 |
+| 64 | window | Root-MUSIC | 7.019 | 0.752 | 1000 |
+| 64 | window | ReconUNet | 12.653 | 1.289 | 1000 |
+| 64 | window | SubspaceNet | 12.238 | 2.265 | 1000 |
+| 64 | both | CRLB | 0.208 |  | 1000 |
+| 64 | decimated | Root-MUSIC | 5.781 | 0.612 | 1000 |
+| 64 | decimated | ReconUNet | 26.482 | 21.263 | 1000 |
+| 64 | decimated | SubspaceNet | 10.132 | 2.096 | 1000 |
+| 128 | window | Root-MUSIC | 5.713 | 0.572 | 1000 |
+| 128 | window | ReconUNet | 4.596 | 0.881 | 1000 |
+| 128 | window | SubspaceNet | 6.645 | 1.517 | 1000 |
+| 128 | both | CRLB | 0.104 |  | 1000 |
+| 128 | decimated | Root-MUSIC | 5.546 | 0.560 | 1000 |
+| 128 | decimated | ReconUNet | 16.356 | 2.572 | 1000 |
+| 128 | decimated | SubspaceNet | 7.117 | 1.397 | 1000 |
+| 256 | window | Root-MUSIC | 5.875 | 0.503 | 1000 |
+| 256 | window | ReconUNet | 1.871 | 0.699 | 1000 |
+| 256 | window | SubspaceNet | 3.629 | 1.189 | 1000 |
+| 256 | both | CRLB | 0.052 |  | 1000 |
+| 256 | decimated | Root-MUSIC | 5.908 | 0.513 | 1000 |
+| 256 | decimated | ReconUNet | 1.843 | 0.704 | 1000 |
+| 256 | decimated | SubspaceNet | 3.818 | 1.029 | 1000 |
+| 512 | window | Root-MUSIC | 5.915 | 0.486 | 1000 |
+| 512 | window | ReconUNet | 1.790 | 0.616 | 1000 |
+| 512 | window | SubspaceNet | 2.918 | 1.035 | 1000 |
+| 512 | both | CRLB | 0.026 |  | 1000 |
+| 512 | decimated | Root-MUSIC | 5.915 | 0.486 | 1000 |
+| 512 | decimated | ReconUNet | 1.790 | 0.616 | 1000 |
+| 512 | decimated | SubspaceNet | 2.918 | 1.035 | 1000 |
+
+## Separation sweep, K=2 at 0 and −5 dB (RMSE, median, resolution probability)
+
+_Appended 2026-09-20 19:28 UTC from `experiments/runs/sweeps_20260920/separation_sweep.csv`._
+
+| sep_deg | snr_db | method | rmse_deg | median_rmspe_deg | resolution_prob | n |
+|---|---|---|---|---|---|---|
+| 2.000 | 0.000 | Root-MUSIC | 29.201 | 18.528 | 0.068 | 1000 |
+| 2.000 | 0.000 | ESPRIT | 13.417 | 2.394 | 0.128 | 1000 |
+| 2.000 | 0.000 | ReconUNet | 34.761 | 20.303 | 0.000 | 1000 |
+| 2.000 | 0.000 | SubspaceNet | 25.365 | 18.833 | 0.001 | 1000 |
+| 2.000 | 0.000 | DA-MUSIC | 9.018 | 7.137 | 0.001 | 1000 |
+| 2.000 | 0.000 | CRLB | 4.851 |  |  | 1000 |
+| 2.000 | -5.000 | Root-MUSIC | 34.382 | 25.212 | 0.001 | 1000 |
+| 2.000 | -5.000 | ESPRIT | 32.171 | 21.999 | 0.014 | 1000 |
+| 2.000 | -5.000 | ReconUNet | 35.292 | 20.248 | 0.001 | 1000 |
+| 2.000 | -5.000 | SubspaceNet | 22.815 | 20.053 | 0.004 | 1000 |
+| 2.000 | -5.000 | DA-MUSIC | 8.983 | 7.181 | 0.001 | 1000 |
+| 2.000 | -5.000 | CRLB | 40.267 |  |  | 1000 |
+| 4.000 | 0.000 | Root-MUSIC | 0.911 | 0.712 | 0.930 | 1000 |
+| 4.000 | 0.000 | ESPRIT | 1.123 | 0.860 | 0.869 | 1000 |
+| 4.000 | 0.000 | ReconUNet | 32.156 | 18.383 | 0.041 | 1000 |
+| 4.000 | 0.000 | SubspaceNet | 23.546 | 16.580 | 0.018 | 1000 |
+| 4.000 | 0.000 | DA-MUSIC | 7.681 | 6.013 | 0.007 | 1000 |
+| 4.000 | 0.000 | CRLB | 0.534 |  |  | 1000 |
+| 4.000 | -5.000 | Root-MUSIC | 24.308 | 2.481 | 0.316 | 1000 |
+| 4.000 | -5.000 | ESPRIT | 11.022 | 1.941 | 0.361 | 1000 |
+| 4.000 | -5.000 | ReconUNet | 30.876 | 17.580 | 0.040 | 1000 |
+| 4.000 | -5.000 | SubspaceNet | 21.620 | 19.078 | 0.019 | 1000 |
+| 4.000 | -5.000 | DA-MUSIC | 7.661 | 6.066 | 0.006 | 1000 |
+| 4.000 | -5.000 | CRLB | 3.313 |  |  | 1000 |
+| 6.000 | 0.000 | Root-MUSIC | 0.557 | 0.443 | 1.000 | 1000 |
+| 6.000 | 0.000 | ESPRIT | 0.688 | 0.534 | 0.999 | 1000 |
+| 6.000 | 0.000 | ReconUNet | 15.997 | 2.598 | 0.441 | 1000 |
+| 6.000 | 0.000 | SubspaceNet | 20.214 | 12.065 | 0.086 | 1000 |
+| 6.000 | 0.000 | DA-MUSIC | 6.046 | 4.984 | 0.042 | 1000 |
+| 6.000 | 0.000 | CRLB | 0.180 |  |  | 1000 |
+| 6.000 | -5.000 | Root-MUSIC | 5.533 | 0.834 | 0.952 | 1000 |
+| 6.000 | -5.000 | ESPRIT | 1.480 | 1.020 | 0.926 | 1000 |
+| 6.000 | -5.000 | ReconUNet | 15.616 | 2.629 | 0.446 | 1000 |
+| 6.000 | -5.000 | SubspaceNet | 18.057 | 12.077 | 0.104 | 1000 |
+| 6.000 | -5.000 | DA-MUSIC | 6.157 | 5.099 | 0.043 | 1000 |
+| 6.000 | -5.000 | CRLB | 0.916 |  |  | 1000 |
+| 8.000 | 0.000 | Root-MUSIC | 0.421 | 0.332 | 1.000 | 1000 |
+| 8.000 | 0.000 | ESPRIT | 0.569 | 0.434 | 1.000 | 1000 |
+| 8.000 | 0.000 | ReconUNet | 2.825 | 1.323 | 0.951 | 1000 |
+| 8.000 | 0.000 | SubspaceNet | 14.374 | 4.025 | 0.393 | 1000 |
+| 8.000 | 0.000 | DA-MUSIC | 4.624 | 3.974 | 0.275 | 1000 |
+| 8.000 | 0.000 | CRLB | 0.090 |  |  | 1000 |
+| 8.000 | -5.000 | Root-MUSIC | 0.731 | 0.530 | 1.000 | 1000 |
+| 8.000 | -5.000 | ESPRIT | 0.926 | 0.700 | 0.998 | 1000 |
+| 8.000 | -5.000 | ReconUNet | 3.374 | 1.377 | 0.942 | 1000 |
+| 8.000 | -5.000 | SubspaceNet | 13.824 | 3.771 | 0.417 | 1000 |
+| 8.000 | -5.000 | DA-MUSIC | 4.874 | 4.149 | 0.245 | 1000 |
+| 8.000 | -5.000 | CRLB | 0.403 |  |  | 1000 |
+| 10.000 | 0.000 | Root-MUSIC | 0.345 | 0.261 | 1.000 | 1000 |
+| 10.000 | 0.000 | ESPRIT | 0.504 | 0.372 | 1.000 | 1000 |
+| 10.000 | 0.000 | ReconUNet | 1.159 | 0.941 | 1.000 | 1000 |
+| 10.000 | 0.000 | SubspaceNet | 11.704 | 2.235 | 0.705 | 1000 |
+| 10.000 | 0.000 | DA-MUSIC | 3.301 | 2.896 | 0.783 | 1000 |
+| 10.000 | 0.000 | CRLB | 0.055 |  |  | 1000 |
+| 10.000 | -5.000 | Root-MUSIC | 0.534 | 0.404 | 1.000 | 1000 |
+| 10.000 | -5.000 | ESPRIT | 0.735 | 0.547 | 1.000 | 1000 |
+| 10.000 | -5.000 | ReconUNet | 1.199 | 0.942 | 0.999 | 1000 |
+| 10.000 | -5.000 | SubspaceNet | 9.870 | 2.207 | 0.737 | 1000 |
+| 10.000 | -5.000 | DA-MUSIC | 3.519 | 3.120 | 0.729 | 1000 |
+| 10.000 | -5.000 | CRLB | 0.232 |  |  | 1000 |
+| 15.000 | 0.000 | Root-MUSIC | 0.267 | 0.205 | 1.000 | 1000 |
+| 15.000 | 0.000 | ESPRIT | 0.381 | 0.267 | 1.000 | 1000 |
+| 15.000 | 0.000 | ReconUNet | 0.675 | 0.532 | 1.000 | 1000 |
+| 15.000 | 0.000 | SubspaceNet | 5.986 | 1.176 | 0.920 | 1000 |
+| 15.000 | 0.000 | DA-MUSIC | 1.881 | 1.468 | 0.998 | 1000 |
+| 15.000 | 0.000 | CRLB | 0.023 |  |  | 1000 |
+| 15.000 | -5.000 | Root-MUSIC | 0.378 | 0.289 | 1.000 | 1000 |
+| 15.000 | -5.000 | ESPRIT | 0.507 | 0.374 | 1.000 | 1000 |
+| 15.000 | -5.000 | ReconUNet | 0.713 | 0.556 | 1.000 | 1000 |
+| 15.000 | -5.000 | SubspaceNet | 7.453 | 1.207 | 0.956 | 1000 |
+| 15.000 | -5.000 | DA-MUSIC | 2.020 | 1.636 | 0.998 | 1000 |
+| 15.000 | -5.000 | CRLB | 0.092 |  |  | 1000 |
+
+## Bootstrap 95 % CIs, Table II mild at 0 dB
+
+_Appended 2026-09-20 19:28 UTC from `experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_mild_v2_ci.csv` (snr_db=0.0)._
+
+_(empty)_
