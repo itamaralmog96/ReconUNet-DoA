@@ -1,6 +1,6 @@
 # Results status — revision pipeline 2026-09-20
 
-**Last update:** 2026-09-20 17:49 UTC · **pipeline process:** running · **pipeline log says:** in progress
+**Last update:** 2026-09-20 18:19 UTC · **pipeline process:** running · **pipeline log says:** in progress
 
 This page is rewritten by the auto-push watcher every 30 minutes. Links point at the files on `main`.
 
@@ -8,7 +8,7 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 
 ## ETA
 
-- `damusic_k4_v2` at epoch 463/600 after 127 min; worst case 105 more min at 46 s/epoch, sooner if early stopping (patience 25) triggers
+- `damusic_k4_v2` at epoch 502/600 after 157 min; worst case 75 more min at 46 s/epoch, sooner if early stopping (patience 25) triggers
 - Pending: 12 stages; rough worst-case remaining ≈ 60 min (0 ablation variants ≈ 0 min run two at a time → ≈ 0 min, 0 DA-MUSIC runs ≤ 0 min, evals + extras ≈ 60 min).
 
 ## Results (links)
@@ -34,7 +34,7 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 | Revision figures folder | ⏳ pending | [docs/figs_revision](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/figs_revision) |
 | Original 2026-09-10 results + HTML report | ✅ 09-10 11:25 | [experiments/runs/eval_coherent_20260910](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910) |
 | Pipeline master status log | ✅ 09-20 15:42 | [experiments/runs/revision2_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/revision2_20260920/status.log) |
-| Auto-push log | ✅ 09-20 17:19 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
+| Auto-push log | ✅ 09-20 17:49 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
 
 ## Stages
 
@@ -87,7 +87,7 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 |---|---|---|---|---|---|
 | 2 | 491 | 466 | 4.983 | 5.120 | 1.0e-06 |
 | 3 | 600 | 595 | 4.390 | 4.566 | 1.0e-06 |
-| 4 | 463 | 458 | 3.905 | 4.132 | 1.2e-05 |
+| 4 | 502 | 499 | 3.897 | 4.132 | 2.8e-06 |
 
 ## Master status log (tail)
 
