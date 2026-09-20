@@ -71,6 +71,12 @@ def _meta_from_cfg(meta: dict) -> ManifestMeta:
         snr_range_db=tuple(meta["snr_range_db"]),
         element_spacing_lambda=float(meta.get("element_spacing_lambda", 0.5)),
         speed_of_light=float(meta.get("speed_of_light", 2.998e8)),
+        # Legacy-default 0.05·fs band-limited sources (coherent multipath);
+        # set ``source_bw_frac: 0`` in the yaml for white full-band sources.
+        source_bw_frac=(
+            None if meta.get("source_bw_frac", 0.05) in (None, 0, 0.0)
+            else float(meta["source_bw_frac"])
+        ),
         array_type=array_type,
         version=str(meta.get("version", "1.0")),
         notes=str(meta.get("notes", "")),

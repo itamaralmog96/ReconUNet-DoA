@@ -180,6 +180,13 @@ class ManifestMeta:
     fs_Hz: float = 2.45e9            # carrier / sampling frequency
     speed_of_light: float = 2.998e8
     tau: int = 8                     # lag-stack depth (SubspaceNet / ReconUNet)
+    # Source bandwidth as a fraction of ``fs_Hz``.  The legacy
+    # ``signalgen.SignalConfig`` default was 10 % of Nyquist = 0.05·fs, which
+    # gives a coherence time of ~20 samples so that the few-sample multipath
+    # delays leave the replica *highly correlated* with the direct path
+    # (paper §II-B, |γ| ≈ 1).  ``0``/``None`` ⇒ white full-band sources (the
+    # pre-v1.2 renderer), whose replicas were covariance-incoherent.
+    source_bw_frac: Optional[float] = 0.05
 
     # --- sampling strategy ----------------------------------------------
     K_max: int = K_MAX
@@ -203,6 +210,7 @@ class ManifestMeta:
             "fs_Hz": self.fs_Hz,
             "speed_of_light": self.speed_of_light,
             "tau": self.tau,
+            "source_bw_frac": self.source_bw_frac,
             "K_max": self.K_max,
             "angle_range_deg": list(self.angle_range_deg),
             "snr_range_db": list(self.snr_range_db),

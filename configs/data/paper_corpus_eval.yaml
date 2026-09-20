@@ -44,6 +44,7 @@ meta:
   fs_Hz: 2.45e9
   speed_of_light: 2.998e8
   tau: 8
+  source_bw_frac: 0.05              # source bandwidth / fs (legacy 10 % of Nyquist) → coherent multipath; 0 = white
   K_max: 8
   angle_range_deg: [-60.0, 60.0]
 

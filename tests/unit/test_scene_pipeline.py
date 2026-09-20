@@ -98,6 +98,63 @@ def test_renderer_snr_is_calibrated_ballpark():
 
 
 # ---------------------------------------------------------------------------
+# Source band-limiting and coherent multipath (v1.2 renderer, 2026-09-06)
+# ---------------------------------------------------------------------------
+
+
+def _mp_scene(seed: int, k: int = 1, n_mp: int = 2, snr: float = 40.0) -> Scene:
+    base = _scene(seed=seed, k=k, snr=snr)
+    return Scene(**{**base.__dict__, "has_multipath": True, "num_multipath": n_mp})
+
+
+def test_sources_are_bandlimited_and_unit_power():
+    """Legacy 0.05·fs band-limiting: unit power and strong lag correlation."""
+    meta = ManifestMeta(M=8, T=512, tau=8)
+    r = SceneRenderer(meta).render(_scene(seed=3, k=2, snr=40.0))
+    s = r.source_signals.astype(np.complex128)
+    np.testing.assert_allclose(np.mean(np.abs(s) ** 2, axis=1), 1.0, atol=1e-5)
+    T = s.shape[1]
+    for lag in range(1, meta.tau):
+        rho = abs(np.vdot(s[0, :T - lag], s[0, lag:])) / np.vdot(s[0], s[0]).real
+        assert rho > 0.75, (lag, rho)                    # sinc(0.05·7) ≈ 0.81
+
+
+def test_white_sources_when_bandlimiting_disabled():
+    meta = ManifestMeta(M=8, T=512, tau=8, source_bw_frac=None)
+    r = SceneRenderer(meta).render(_scene(seed=3, k=1, snr=40.0))
+    s = r.source_signals[0].astype(np.complex128)
+    rho = abs(np.vdot(s[:-1], s[1:])) / np.vdot(s, s).real
+    assert rho < 0.2, rho
+
+
+def test_multipath_replicas_are_highly_correlated():
+    """Paper §II-B regime: replica ≈ delayed copy ⇒ |γ| ≈ 1, near rank-1."""
+    meta = ManifestMeta(M=8, T=512, tau=8)
+    rend = SceneRenderer(meta)
+    gammas, ratios = [], []
+    for seed in range(40):
+        r = rend.render(_mp_scene(seed, k=1, n_mp=2))
+        S = r.source_signals.astype(np.complex128)
+        assert S.shape[0] == 3 and r.mp_delay_samples.shape == (2,)
+        # legacy mapping: delay = τ·fs/2 ∈ (0, 10] samples for uniform τ ≤ 1/bw
+        assert np.all((r.mp_delay_samples > 0) & (r.mp_delay_samples <= 10.0))
+        d, m = S[0], S[1]
+        gammas.append(abs(np.vdot(d, m)) / (np.linalg.norm(d) * np.linalg.norm(m)))
+        A = r.steering.astype(np.complex128)
+        Rs = A @ (S @ S.conj().T / S.shape[1]) @ A.conj().T      # noise-free
+        ev = np.sort(np.linalg.eigvalsh(Rs))[::-1]
+        ratios.append(ev[1] / ev[0])
+    assert np.mean(gammas) > 0.8, np.mean(gammas)
+    assert np.min(gammas) > 0.5, np.min(gammas)           # sinc(0.05·10) ≈ 0.64
+    assert np.median(ratios) < 0.1, np.median(ratios)
+
+
+def test_no_multipath_has_empty_delays():
+    r = SceneRenderer(META).render(_scene(seed=1))
+    assert r.mp_delay_samples.shape == (0,)
+
+
+# ---------------------------------------------------------------------------
 # Lag-stack shape invariants
 # ---------------------------------------------------------------------------
 

@@ -16,6 +16,16 @@ is
 
     X[m, t] = Σ_k a_m(θ_k) · s_k(t)  +  n[m, t]
 
+Source waveforms are *band-limited* to ``ManifestMeta.source_bw_frac · fs``
+(legacy default 0.05·fs, i.e. a ~20-sample coherence time) with a rectangular
+baseband spectrum.  This matters for two things the paper relies on: (i) the
+non-zero lags of the autocorrelation stack carry the signal subspace
+(|r_s(ℓ)| ≈ sinc(bw·ℓ) ≥ 0.8 for ℓ ≤ 7) while white noise decorrelates, and
+(ii) a specular multipath replica, which is the direct waveform delayed by a
+few samples, stays highly correlated with it (paper §II-B, |γ| → 1 ⇒ rank
+collapse of the signal covariance).  With white sources neither holds — a
+one-sample delay already yields an uncorrelated copy.
+
 with steering vector
 
     a_m(θ) = exp(-j · 2π · (m · d / λ) · sin(θ)) · g_m · exp(j · ψ_m)
@@ -236,29 +246,61 @@ def _sample_multipath_params(
     return tau, db_loss, phi
 
 
-def _legacy_bandlimited_sources(
-    rng: np.random.Generator, K: int, signal_length: int,
-) -> np.ndarray:
-    """Legacy ``generate_source_signals`` in full-bandwidth mode, ``[K, N]``.
+def _effective_bw_frac(bw_frac: Optional[float]) -> Optional[float]:
+    """Normalise ``ManifestMeta.source_bw_frac``: ``None``/0/≥1 ⇒ full band."""
+    if bw_frac is None:
+        return None
+    bw_frac = float(bw_frac)
+    return bw_frac if 0.0 < bw_frac < 1.0 else None
 
-    Reproduces the iFFT-of-rectangular-filtered-white-noise recipe at
-    ``signal_generator.generate_source_signals`` lines 153–179 with
-    ``use_full_bandwidth=True`` (the cleanest bandlimited default).  Power is
-    normalised to unit variance per source so the direct-path SNR bookkeeping
-    in :meth:`SceneRenderer.render` is unchanged.
+
+def _bandlimit_sources(sources: np.ndarray, bw_frac: Optional[float]) -> np.ndarray:
+    """Rectangular baseband band-limiting of ``[K, T]`` source waveforms.
+
+    Reproduces the legacy ``signal_generator.generate_source_signals``
+    recipe (lines 153–179 with ``use_full_bandwidth=False``): white complex
+    Gaussian spectrum → rectangular mask of total width ``bw = bw_frac·fs``
+    → iFFT → unit-power normalisation.  Masking the FFT of a white
+    time-domain draw is statistically identical to the legacy
+    frequency-domain draw for Gaussian sources, and additionally applies to
+    the symbol alphabets (BPSK/QPSK), which become pulse-shaped streams.
+
+    The passband is centred on baseband.  The legacy code offset each
+    source by a per-source centre frequency; at complex baseband that only
+    multiplies the waveform by e^{j2πf₀t}, which leaves the zero-lag spatial
+    covariance untouched, so all sources share one carrier here as the
+    paper's narrowband model assumes.
+
+    ``bw_frac`` of ``None``/0/≥1 disables filtering (white sources — the
+    pre-v1.2 renderer behaviour; see the module docstring for why that made
+    multipath covariance-incoherent).
     """
-    out = np.empty((K, signal_length), dtype=np.complex128)
-    for k in range(K):
-        freq_noise = (rng.standard_normal(signal_length)
-                      + 1j * rng.standard_normal(signal_length))
-        # use_full_bandwidth=True branch: filter_response = ones, so the iFFT
-        # just returns the white complex noise transformed back.  We keep the
-        # exact legacy call order (ifft of the noise) to stay byte-close to
-        # the reference implementation.
-        time_signal = np.fft.ifft(freq_noise, n=signal_length)
-        power = np.mean(np.abs(time_signal) ** 2)
-        out[k] = time_signal / np.sqrt(power) if power > 0 else time_signal
-    return out
+    bw_frac = _effective_bw_frac(bw_frac)
+    if bw_frac is None:
+        return sources
+    _, T = sources.shape
+    f = np.fft.fftfreq(T)                              # cycles/sample
+    mask = np.abs(f) <= 0.5 * bw_frac
+    if mask.sum() < 3:                                 # T·bw < 3 ⇒ keep DC ± 1 bin
+        mask[:] = False
+        mask[[0, 1, T - 1]] = True
+    out = np.fft.ifft(np.fft.fft(sources, axis=1) * mask[None, :], axis=1)
+    power = np.mean(np.abs(out) ** 2, axis=1, keepdims=True)
+    power[power <= 0.0] = 1.0
+    return out / np.sqrt(power)
+
+
+def _fractional_delay(x: np.ndarray, delay_samples: float) -> np.ndarray:
+    """Circularly delay a 1-D waveform by a (fractional) number of samples.
+
+    A linear phase ramp in the FFT domain — *exact* for the FFT-periodic,
+    band-limited sources from :func:`_bandlimit_sources`.  Replaces the
+    legacy ``resample_poly(×max_delay_factor)`` → integer shift → decimate
+    chain, whose delay resolution was ``1/max_delay_factor`` samples.
+    """
+    T = x.shape[-1]
+    k = np.fft.fftfreq(T)                              # cycles/sample
+    return np.fft.ifft(np.fft.fft(x) * np.exp(-2j * np.pi * k * float(delay_samples)))
 
 
 @dataclass
@@ -300,6 +342,14 @@ class RenderResult:
     noise: np.ndarray                # [M, T] complex64
     angles_rad: np.ndarray           # [K] float64        (direct-path angles only)
     angles_rad_multipath: np.ndarray  # [N] float64       (multipath AoAs; [] if N=0)
+    # Replica delays in *samples* (fractional), one per multipath column.
+    # Diagnostic only — lets analyses relate direct/replica correlation
+    # (≈ sinc(bw·delay)) to estimator behaviour.  ``[]`` when N=0.
+    mp_delay_samples: np.ndarray = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.mp_delay_samples is None:
+            self.mp_delay_samples = np.empty((0,), dtype=np.float64)
 
 
 class SceneRenderer:
@@ -367,20 +417,32 @@ class SceneRenderer:
             position_err=position_err,
         )
 
-        # --- multipath (legacy-faithful — see _sample_multipath_params) ----
-        # When scene.has_multipath is False the whole block is skipped, so
-        # non-multipath manifests render byte-identically to before v1.1.
+        # --- source waveforms (direct paths; replicas are derived from them)
+        # Band-limited to ``meta.source_bw_frac · fs`` (legacy 0.05·fs).  The
+        # rng consumption of ``_draw_sources`` is unchanged, so with
+        # ``source_bw_frac=None`` non-multipath scenes render exactly as
+        # before v1.2.
+        sources_direct = _bandlimit_sources(
+            self._draw_sources(rng, K=K, T=T, modulation=scene.modulation),
+            self.meta.source_bw_frac,
+        )
+
+        # --- multipath (legacy-faithful — see _render_with_multipath) ------
         has_mp = bool(scene.has_multipath) and int(scene.num_multipath) > 0
         if has_mp:
-            mp_result = self._render_with_multipath(
-                rng=rng, scene=scene, M=M, T=T, K=K,
-                A_direct=A, angles_rad_direct=angles_rad,
-                gain_err=gain_err, phase_err=phase_err, position_err=position_err,
+            A_full, sources_full, angles_rad_full, mp_delay_samples = (
+                self._render_with_multipath(
+                    rng=rng, scene=scene, M=M, T=T,
+                    direct=sources_direct,
+                    A_direct=A, angles_rad_direct=angles_rad,
+                    gain_err=gain_err, phase_err=phase_err,
+                    position_err=position_err,
+                )
             )
-            A_full, sources_full, angles_rad_full = mp_result
         else:
-            sources_full = self._draw_sources(rng, K=K, T=T, modulation=scene.modulation)
+            sources_full = sources_direct
             A_full, angles_rad_full = A, angles_rad
+            mp_delay_samples = np.empty((0,), dtype=np.float64)
 
         # --- mutual coupling applies to the full steering matrix -----------
         # The paper-faithful coupling matrix has random per-diagonal jitter
@@ -446,6 +508,7 @@ class SceneRenderer:
             noise=noise.astype(np.complex64),
             angles_rad=angles_rad.astype(np.float64),  # K direct angles only
             angles_rad_multipath=angles_rad_multipath,
+            mp_delay_samples=np.asarray(mp_delay_samples, dtype=np.float64),
         )
 
     # --- legacy-faithful multipath branch ----------------------------------
@@ -457,40 +520,48 @@ class SceneRenderer:
         scene: Scene,
         M: int,
         T: int,
-        K: int,
+        direct: np.ndarray,
         A_direct: np.ndarray,
         angles_rad_direct: np.ndarray,
         gain_err: np.ndarray,
         phase_err: np.ndarray,
         position_err: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Produce ``(A_full, sources_full, angles_rad_full)`` with multipath.
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Append specular replicas of source 0 to the direct paths.
 
-        Mirrors ``signal_generator.add_multipath`` (legacy):
-          * draws N_mp additional paths, each with a random AoA and a complex
-            gain ``10^(-dB/20) · √P · exp(j(φ − 2π f_c τ))`` (line 332);
-          * the multipath signal is a ``N_k``-sample-delayed copy of source 0's
-            bandlimited-Gaussian realisation (legacy: resample_poly + slice;
-            here: FFT-bandlimited draw of length ``T + max_delay_samples``,
-            integer-sample slicing — statistically equivalent for the
-            iid-Gaussian-at-Nyquist case used throughout the new pipeline).
+        Returns ``(A_full, sources_full, angles_rad_full, delay_samples)``.
+
+        Mirrors ``signal_generator.add_multipath`` (legacy), which produced
+        *highly correlated* replicas:
+          * draws N_mp additional paths, each with a random AoA, a delay
+            ``τ`` (uniform or exponential, ≤ 1/bw), a delay-correlated dB
+            loss, and a complex gain ``10^(-dB/20)·√P·exp(j(φ − 2π f_c τ))``;
+          * the replica waveform is source 0 *delayed by a fraction of its
+            coherence time*.  Legacy: ``resample_poly(×factor)`` → integer
+            shift ``int(τ·fs·factor/2)`` in the upsampled domain → decimate,
+            i.e. an effective delay of ``τ·fs/2`` original samples with
+            ``1/factor`` resolution (shifts ≤ 0 clamped to one upsampled
+            sample).  Here the same delay is applied exactly via an FFT phase
+            ramp (:func:`_fractional_delay`).  With ``source_bw_frac = 0.05``
+            the delay spans 0–10 samples against a ~20-sample coherence time,
+            so the direct/replica correlation is ``≈ sinc(bw·delay)`` ∈
+            [0.64, 1], mean ≈ 0.87 — the near-rank-1 regime of paper §II-B.
+
+        Legacy ``add_multipath`` *dropped* a path whose shift overran the
+        signal; we clamp the delay at ``T/4`` instead so the manifest's
+        ``num_multipath`` is always honoured (a delay that long is incoherent
+        anyway).
         """
         num_mp = int(scene.num_multipath)
         fs = float(self.meta.fs_Hz)
-        bw = fs * _LEGACY_BW_FRACTION_OF_FS                        # legacy default
-        max_delay_seconds = 1.0 / bw                               # legacy line 249
-        max_delay_samples = int(max_delay_seconds * fs)
-        if max_delay_samples >= T:
-            # legacy raises here; we clamp to keep the pipeline robust.
-            max_delay_samples = max(1, T // 2)
-            max_delay_seconds = max_delay_samples / fs
+        bw_frac = _effective_bw_frac(self.meta.source_bw_frac)
+        if bw_frac is None:
+            # White sources: keep the legacy delay *range* (as if bw = 0.05·fs)
+            # so the delay statistics do not depend on the filtering switch.
+            bw_frac = _LEGACY_BW_FRACTION_OF_FS
+        max_delay_seconds = 1.0 / (fs * bw_frac)                   # legacy line 249
 
-        # 1) Bandlimited (full-band) source signals of length T+max_delay_samples
-        signal_len = T + max_delay_samples
-        sources_long = _legacy_bandlimited_sources(rng, K=K, signal_length=signal_len)
-        direct = sources_long[:, :T]                               # [K, T]
-
-        # 2) Sample multipath parameters (legacy formulas)
+        # 1) Sample multipath parameters (legacy formulas)
         distribution = "uniform" if int(scene.mp_distribution) == 0 else "exponential"
         tau, db_loss, phi = _sample_multipath_params(
             rng, num_paths=num_mp,
@@ -501,28 +572,23 @@ class SceneRenderer:
         # with the new renderer's sin(θ) convention (see module docstring).
         aoa_rad = rng.uniform(0.0, 2.0 * np.pi, size=num_mp)
 
-        # 3) Delay the source[0] signal by N_k samples (legacy line 344).  For
-        # the iid-Gaussian regime, N_k ≥ 1 gives an uncorrelated copy of the
-        # source — i.e. incoherent multipath, which is exactly what the legacy
-        # produces on iid sources.  Coherent behaviour would require
-        # genuinely bandlimited sources; the FFT draw above is the closest
-        # the new pipeline gets without changing the direct-source model.
-        source_power = float(np.mean(np.abs(direct[0]) ** 2))       # should be ≈ 1
-        # Legacy uses factor/2 as the sample-shift normaliser.
+        # 2) Effective delay in original samples (legacy mapping, see docstring)
         factor = float(scene.mp_max_delay_factor) or 10.0
-        shift_samples = np.clip(
-            (tau * fs * factor / 2.0).astype(np.int64), 1, max_delay_samples
-        )
+        delay_samples = np.floor(tau * fs * factor / 2.0) / factor
+        delay_samples = np.clip(delay_samples, 1.0 / factor, T / 4.0)
+
+        # 3) Complex gains (legacy line 332; f_c ≈ f_s in the manifest)
+        source_power = float(np.mean(np.abs(direct[0]) ** 2))       # ≈ 1
         amp = 10.0 ** (-db_loss / 20.0) * np.sqrt(source_power)
-        carrier_phase = -2.0 * np.pi * fs * tau                     # fc ≈ fs here
+        carrier_phase = -2.0 * np.pi * fs * tau
         complex_gain = amp * np.exp(1j * (phi + carrier_phase))
 
+        # 4) Replica waveforms = delayed copies of source 0
         mp_signals = np.empty((num_mp, T), dtype=np.complex128)
         for k in range(num_mp):
-            N_k = int(shift_samples[k])
-            mp_signals[k] = complex_gain[k] * sources_long[0, N_k:N_k + T]
+            mp_signals[k] = complex_gain[k] * _fractional_delay(direct[0], delay_samples[k])
 
-        # 4) Multipath steering columns — same imperfections as direct paths.
+        # 5) Multipath steering columns — same imperfections as direct paths.
         A_mp = _steering_vector(
             aoa_rad, M=M,
             element_spacing_lambda=self.meta.element_spacing_lambda,
@@ -532,7 +598,7 @@ class SceneRenderer:
         A_full = np.concatenate([A_direct, A_mp], axis=1)           # [M, K+N]
         sources_full = np.concatenate([direct, mp_signals], axis=0) # [K+N, T]
         angles_rad_full = np.concatenate([angles_rad_direct, aoa_rad])
-        return A_full, sources_full, angles_rad_full
+        return A_full, sources_full, angles_rad_full, delay_samples
 
     # --- source modulation --------------------------------------------------
 

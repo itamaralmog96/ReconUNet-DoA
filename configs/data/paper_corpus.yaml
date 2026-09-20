@@ -62,6 +62,7 @@ meta:
   fs_Hz: 2.45e9                     # narrowband around 2.45 GHz (paper)
   speed_of_light: 2.998e8
   tau: 8                            # lag depth τ=8 (paper §IV "Exact training hyperparameters")
+  source_bw_frac: 0.05              # source bandwidth / fs (legacy 10 % of Nyquist) → coherent multipath; 0 = white
 
   # ---- sampling strategy --------------------------------------------------
   K_max: 8

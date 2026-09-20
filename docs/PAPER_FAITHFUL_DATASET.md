@@ -201,3 +201,67 @@ tests still pass.  The pre-existing
 `test_collates_agree_on_labels` failure is a `torch.equal(NaN, NaN)`
 fragility unrelated to this change (verified by running with the
 imperfection-model edits stashed — same failure).
+
+### 2026-09-06 — Band-limited sources restored: multipath is coherent again
+
+**Scope — what this defect did and did not affect.**  The incoherent-replica
+defect described below existed *only* in the rewritten renderer of this
+repository (`src/reconunet/data/scene_renderer.py`, the v1.1 port).  It
+affected only runs made in this rewritten project for the post-submission
+revision work — the reviewer-requested baseline comparisons (SubspaceNet,
+SubViT, DA-MUSIC) and the ReconUNet retrains alongside them.  Every one of
+those runs was discarded (kept for the record under
+`experiments/runs/archive_incoherent_renderer_20260906/`) and redone on the
+corrected renderer; the retrain finished 2026-09-10 and the results live in
+`experiments/runs/eval_coherent_20260910/`.  **No result in the submitted
+manuscript (MDPI *Sensors*, sensors-4536109) was produced with the defective
+renderer.**  Every number, table and figure in the submission came from the
+original signal generator (`signalgen` / `SignalConfig`), which band-limits
+each source to 10 % of Nyquist and therefore always produced coherent
+multipath replicas — exactly the behaviour this fix restores.
+
+**Symptom (found by the 2026-07-02 publication audit, blocker B1).**  The
+renderer's multipath replicas were *covariance-incoherent*: direct/replica
+correlation at lag 0 was |γ| ≈ 0.04 and the noise-free signal covariance of
+a 1-source + 2-replica scene had λ₂/λ₁ ≈ 0.4 — no rank collapse.  Paper
+§II-B derives |γ| → 1 and an exactly rank-1 covariance.  In addition ~80 %
+of delays saturated at the clip, making same-scene replicas identical
+copies of each other, and the non-zero lags of the autocorrelation stack
+carried no signal (|r_s(ℓ)|/r_s(0) ≈ 0.04 = the 1/√T estimation floor).
+
+**Cause.**  The v1.1 port kept the legacy delay logic but switched the
+source model to white (full-band) complex Gaussian samples, whose coherence
+time is one sample.  The legacy `SignalConfig` band-limited every source to
+10 % of Nyquist (0.05·fs, coherence time ≈ 20 samples), so a delay of a few
+samples left the replica highly correlated.  The port also applied the
+legacy *upsampled-domain* shift `int(τ·fs·factor/2)` as an original-domain
+integer shift (factor = 10 ⇒ 10× too long ⇒ clipping).
+
+**Fix (`scene_renderer.py`, `scene_manifest.py`, `cli/generate_scenes.py`).**
+* New `ManifestMeta.source_bw_frac` (default **0.05**, legacy value).  Every
+  source waveform — direct paths, all modulations — is band-limited with a
+  rectangular baseband mask via `_bandlimit_sources` and renormalised to
+  unit power, so the SNR bookkeeping is unchanged.  `0`/`None` restores
+  white sources.
+* Replicas are the *fractionally* delayed direct waveform via an FFT phase
+  ramp (`_fractional_delay`), with the legacy effective delay τ·fs/2 samples
+  at 1/factor resolution (0–10 samples for uniform τ ≤ 1/bw).
+* `RenderResult.mp_delay_samples` exposes the per-replica delays.
+
+**Measured after the fix** (400 scenes, K=1 + 2 replicas, 40 dB):
+direct/replica |γ| mean 0.89 / median 0.92 / min 0.58 (theory: sinc(bw·d) ∈
+[0.64, 1], mean ≈ 0.87); λ₂/λ₁ median 0.025; |r_s(ℓ)|/r_s(0) for ℓ=1..7 =
+0.99→0.81 (theory sinc(0.05·ℓ)); unit source power exact; empirical SNR
+within 0.1 dB of target.  Regression tests: `tests/unit/test_scene_pipeline.py`
+(`test_sources_are_bandlimited_and_unit_power`,
+`test_multipath_replicas_are_highly_correlated`, …).
+
+**Consequences.**  Rendering is lazy from the manifests, so **no manifest
+or corpus is regenerated** and on-disk `meta.yaml` files without the new key
+pick up the 0.05 default.  All observations change (band-limiting applies to
+every scene, not only multipath ones), so **every trained checkpoint
+(ReconUNet, SubspaceNet, SubViT) is stale and must be retrained**, and all
+evaluation tables must be regenerated.  The non-zero lags of the τ-stack now
+genuinely carry the signal subspace, which is the premise of the multi-lag
+input in the paper.  Multipath replica AoAs for a given seed differ from
+before (the rng consumption order inside the multipath branch changed).
