@@ -26,3 +26,5 @@
 2026-09-20 09:22:17 START damusic_k2_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k2_v2.yaml)
 2026-09-20 11:49:26 END damusic_k2_v2 rc=0 elapsed=147min
 2026-09-20 11:49:26 START damusic_k3_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k3_v2.yaml)
+2026-09-20 15:42:54 END damusic_k3_v2 rc=0 elapsed=233min
+2026-09-20 15:42:54 START damusic_k4_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k4_v2.yaml)
