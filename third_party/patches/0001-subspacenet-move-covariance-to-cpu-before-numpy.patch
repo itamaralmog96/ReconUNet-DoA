@@ -1,0 +1,27 @@
+From 50f26ecabb9bcc6a052c0a027a01e8698421ceb3 Mon Sep 17 00:00:00 2001
+From: Itamar Netline <Itamara@netlinetech.com>
+Date: Tue, 21 Apr 2026 14:45:29 +0300
+Subject: [PATCH] fix: move covariance tensor to CPU before numpy conversion
+
+np.array() cannot convert CUDA tensors directly. Use .detach().cpu().numpy()
+so the augmented evaluation path works on GPU as well as CPU.
+---
+ src/methods.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/methods.py b/src/methods.py
+index f8d3ce3..3be6416 100644
+--- a/src/methods.py
++++ b/src/methods.py
+@@ -167,7 +167,7 @@ class SubspaceMethod(object):
+             subspacenet_model.eval()
+             covariance_mat = subspacenet_model(X)[-1]
+             # Convert to np.array type
+-            covariance_mat = np.array(covariance_mat.squeeze())
++            covariance_mat = covariance_mat.squeeze().detach().cpu().numpy()
+             return covariance_mat
+ 
+         if mode.startswith("spatial_smoothing"):
+-- 
+2.43.0
+

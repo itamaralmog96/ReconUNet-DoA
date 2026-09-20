@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "reconunet"
 version = "0.1.0"
-description = "Deep eigen-covariance reconstruction for robust DOA estimation (MSc thesis project, Itamar Almog & Prof. Anthony J. Weiss)."
+description = "ReconUNet: learned covariance reconstruction for DoA estimation under low SNR, coherent multipath and array imperfections (Almog & Weiss)."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -80,8 +80,9 @@ reconunet-evaluate          = "reconunet.cli.evaluate:main"
 reconunet-evaluate-scenarios = "reconunet.cli.evaluate_scenarios:main"
 
 [project.urls]
-Paper = "https://arxiv.org/abs/placeholder-thesis-doa-01"
-Repository = "https://github.com/placeholder/ReconUNet"
+Repository = "https://github.com/itamaralmog96/reconunet"
+Issues = "https://github.com/itamaralmog96/reconunet/issues"
+Results = "https://github.com/itamaralmog96/reconunet/tree/main/experiments/runs/eval_coherent_20260910"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

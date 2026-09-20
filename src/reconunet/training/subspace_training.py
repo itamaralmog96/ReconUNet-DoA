@@ -782,7 +782,7 @@ if __name__ == "__main__":
     """Example usage."""
     
     # Example: Train SubspaceNet model (also try "subspace_unet" for U-Net variant)
-    dataset_path = "/Users/itamaralmog/Documents/Masters/Second Year/All_DOA_nets/Tri4Net/Data/datasets/linear/ula_dataset_90_all_scenarios/ula_dataset_90_all_scenarios.h5"
+    dataset_path = "Data/datasets/linear/ula_dataset_90_all_scenarios/ula_dataset_90_all_scenarios.h5"
     
     if Path(dataset_path).exists():
         results = train_subspace_model(

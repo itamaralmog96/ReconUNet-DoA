@@ -818,7 +818,7 @@ if __name__ == "__main__":  # pragma: no cover – manual execution only
     # )
 
     cfg = EvaluationConfig(
-        dataset_path='/Users/itamaralmog/Documents/Masters/Second Year/All_DOA_nets/Tri4Net/Data/datasets/linear/ula_dataset_90_all_scenarios/ula_dataset_90_all_scenarios.h5',
+        dataset_path='Data/datasets/linear/ula_dataset_90_all_scenarios/ula_dataset_90_all_scenarios.h5',
         run_classic=True,
         run_deep=False,
         run_augmented=False,

@@ -22,7 +22,7 @@ conda activate DOA_env
 ### Analyze default model
 
 ```bash
-cd "/Users/itamaralmog/Documents/Masters/Second Year/All_DOA_nets/Tri4Net"
+cd <repo root>
 export KMP_DUPLICATE_LIB_OK=TRUE  # Required for OpenMP compatibility
 python scripts/analyze_model_performance.py
 ```
