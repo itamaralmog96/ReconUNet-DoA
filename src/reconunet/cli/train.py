@@ -91,6 +91,18 @@ def _subset_by_k(manifest: SceneManifest, ks: Sequence[int]) -> SceneManifest:
     return SceneManifest(np.ascontiguousarray(rows[mask]), manifest.meta)
 
 
+def _subset_random(manifest: SceneManifest, frac: float, seed: int) -> SceneManifest:
+    """Fixed, seeded random subset of ``frac`` of the rows (row order preserved).
+
+    Used by the ablation "reduced protocol": every variant trains on the *same*
+    10 % of the paper corpus because the subset depends only on ``seed``.
+    """
+    rows = manifest.raw
+    n = max(1, int(round(float(frac) * len(rows))))
+    idx = np.sort(np.random.default_rng(int(seed)).choice(len(rows), size=n, replace=False))
+    return SceneManifest(np.ascontiguousarray(rows[idx]), manifest.meta)
+
+
 def _build_loaders(train_cfg: dict, project_root: Path) -> tuple[DataLoader, DataLoader, ManifestMeta]:
     data_cfg_path = project_root / train_cfg["data"]["config"]
     data_cfg = _load_yaml(data_cfg_path)
@@ -124,7 +136,25 @@ def _build_loaders(train_cfg: dict, project_root: Path) -> tuple[DataLoader, Dat
             raise ValueError(f"k_filter={ks} selects no scenes in {train_path} / {val_path}")
         LOG.info("k_filter=%s -> train=%d val=%d scenes", ks, len(train_manifest), len(val_manifest))
 
+    # Optional fixed, seeded random subset (``data.subset_frac``; ablation
+    # reduced protocol).  ``val_subset_frac`` defaults to the same fraction.
+    subset_frac = train_cfg["data"].get("subset_frac")
+    if subset_frac is not None:
+        sseed = int(train_cfg["data"].get("subset_seed", train_cfg.get("seed", 20260420)))
+        train_manifest = _subset_random(train_manifest, float(subset_frac), sseed)
+        val_frac = float(train_cfg["data"].get("val_subset_frac", subset_frac))
+        val_manifest = _subset_random(val_manifest, val_frac, sseed + 1)
+        LOG.info("subset_frac=%s (seed %d) -> train=%d val=%d scenes",
+                 subset_frac, sseed, len(train_manifest), len(val_manifest))
+
     meta = train_manifest.meta
+    # Optional ``data.meta_overrides`` (ablations): e.g. ``tau: 1`` for a
+    # single-lag input stack, ``fixed_imperfection_seed: N`` for one array-error
+    # realisation shared by all scenes.  The on-disk manifest is untouched.
+    overrides = train_cfg["data"].get("meta_overrides")
+    if overrides:
+        meta = dataclasses.replace(meta, **{k: v for k, v in dict(overrides).items()})
+        LOG.info("meta_overrides applied: %s", dict(overrides))
     renderer = SceneRenderer(meta)
 
     train_ds = SceneDataset(train_manifest, renderer=renderer)

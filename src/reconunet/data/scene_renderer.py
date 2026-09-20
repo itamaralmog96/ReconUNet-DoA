@@ -346,6 +346,11 @@ class RenderResult:
     # Diagnostic only — lets analyses relate direct/replica correlation
     # (≈ sinc(bw·delay)) to estimator behaviour.  ``[]`` when N=0.
     mp_delay_samples: np.ndarray = None  # type: ignore[assignment]
+    # Diagnostic: the per-element calibration actually applied
+    # ({"gain_err", "phase_err", "position_err"}); lets tests / analyses verify
+    # the fixed-imperfection ablation.  ``None`` for callers that build results
+    # by hand.
+    calibration: Optional[dict] = None
 
     def __post_init__(self) -> None:
         if self.mp_delay_samples is None:
@@ -373,19 +378,14 @@ class SceneRenderer:
 
     # --- per-scene rendering ------------------------------------------------
 
-    def render(self, scene: Scene) -> RenderResult:
-        rng = np.random.default_rng(int(scene.seed))
-        M, T = self.meta.M, self.meta.T
+    @staticmethod
+    def _draw_calibration(rng: np.random.Generator, scene: Scene, M: int):
+        """Per-element gain / phase / position errors (paper §II-C eqs. 21-23).
 
-        # --- array calibration draws (per-scene so seed reproduces) --------
-        # Distributions follow Almog & Weiss 2026 §II-C eqs. (21)-(23) and
-        # the legacy ``signalgen.array_processing`` implementation:
-        #   - g_n ∼ U[10^(-Δ/20), 10^(+Δ/20)]   (eq. 23, Δ = scene.gain_err_dB)
-        #   - φ_n ∼ U[-Φ, +Φ] degrees             (eq. 23, Φ = scene.phase_err_deg)
-        #   - ε_n ∼ N(0, σ_pos² · I_2)            (eq. 21, σ_pos = scene.position_err_pct/100 in λ)
-        # Previously these were Gaussians (gain/phase) and a 1-D fractional
-        # spacing perturbation (position) — see PAPER_FAITHFUL_DATASET.md
-        # bug-fix log entry "Imperfections aligned with paper §II-C".
+        g_n ~ U[10^(-Δ/20), 10^(+Δ/20)], φ_n ~ U[-Φ, +Φ] deg,
+        ε_n ~ N(0, σ_pos² I_2) with σ_pos = position_err_pct/100 (wavelengths).
+        Consumes the rng in this fixed order so ``Scene.seed`` reproduces.
+        """
         if scene.gain_err_dB > 0.0:
             gmin = 10.0 ** (-float(scene.gain_err_dB) / 20.0)
             gmax = 10.0 ** (+float(scene.gain_err_dB) / 20.0)
@@ -404,6 +404,32 @@ class SceneRenderer:
             position_err = rng.normal(0.0, sigma_pos, size=(M, 2))
         else:
             position_err = np.zeros((M, 2), dtype=np.float64)
+        return gain_err, phase_err, position_err
+
+    def render(self, scene: Scene) -> RenderResult:
+        rng = np.random.default_rng(int(scene.seed))
+        M, T = self.meta.M, self.meta.T
+
+        # --- array calibration draws (per-scene so seed reproduces) --------
+        # Distributions follow Almog & Weiss 2026 §II-C eqs. (21)-(23) and
+        # the legacy ``signalgen.array_processing`` implementation:
+        #   - g_n ∼ U[10^(-Δ/20), 10^(+Δ/20)]   (eq. 23, Δ = scene.gain_err_dB)
+        #   - φ_n ∼ U[-Φ, +Φ] degrees             (eq. 23, Φ = scene.phase_err_deg)
+        #   - ε_n ∼ N(0, σ_pos² · I_2)            (eq. 21, σ_pos = scene.position_err_pct/100 in λ)
+        # Previously these were Gaussians (gain/phase) and a 1-D fractional
+        # spacing perturbation (position) — see PAPER_FAITHFUL_DATASET.md
+        # bug-fix log entry "Imperfections aligned with paper §II-C".
+        gain_err, phase_err, position_err = self._draw_calibration(rng, scene, M)
+        fixed_seed = getattr(self.meta, "fixed_imperfection_seed", None)
+        rng_fix: Optional[np.random.Generator] = None
+        if fixed_seed is not None:
+            # Ablation (identifiability, reviewer R2-2): ONE array-error
+            # realisation shared by every scene.  The scene rng has already
+            # consumed its own calibration draws above, so sources, noise and
+            # multipath render exactly as in the randomised case; only the
+            # error values (and the coupling jitter below) are replaced.
+            rng_fix = np.random.default_rng(int(fixed_seed))
+            gain_err, phase_err, position_err = self._draw_calibration(rng_fix, scene, M)
 
         # --- direct-path steering -----------------------------------------
         K = int(scene.n_sources)
@@ -451,6 +477,8 @@ class SceneRenderer:
         # the whole imperfection state reproducible from ``scene.seed``.
         if scene.mutual_coupling != 0.0:
             C = _mutual_coupling_matrix(M, float(scene.mutual_coupling), rng=rng)
+            if rng_fix is not None:                 # fixed-imperfection ablation
+                C = _mutual_coupling_matrix(M, float(scene.mutual_coupling), rng=rng_fix)
             A_full = C @ A_full
 
         # --- noise (set SNR against the *direct-path* unit-variance source) -
@@ -500,6 +528,8 @@ class SceneRenderer:
         )
 
         return RenderResult(
+            calibration={"gain_err": gain_err, "phase_err": phase_err,
+                         "position_err": position_err},
             snapshots=X.astype(np.complex64),
             covariance=Rxx.astype(np.complex64),
             covariance_clean=R_clean.astype(np.complex64),

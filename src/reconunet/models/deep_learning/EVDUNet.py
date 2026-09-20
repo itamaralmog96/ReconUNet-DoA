@@ -255,6 +255,43 @@ class CovarianceReconstructionUNet(nn.Module):
         
         return Kx_raw, Rz, Rz_real_imag
 
+class CovarianceOnlyReconstructionUNet(nn.Module):
+    """Ablation 08 — the covariance U-Net *without* eigenvalue / eigenvector heads.
+
+    Same backbone as :class:`CovarianceReconstructionUNet`; the Hermitian,
+    diagonally-loaded reconstructed covariance is the only learned output.
+
+    * Training (``self.training``): returns ``{"K_recon": R_hat}`` so the
+      trainer's composite loss reduces to L_rec (the ablation config lists only
+      ``reconstruction_weight``).
+    * Evaluation: returns the same ``(eigvals, eigvecs, R_hat)`` triple as
+      :class:`EVDCovarianceReconstructionUNet`, with the eigenpairs obtained by
+      ``eigh(R_hat)`` in descending order, so every downstream consumer (the
+      Root-MUSIC back end, adapters, ablation metrics) works unchanged.  This is
+      exactly the "covariance route" of the route comparison.
+    """
+
+    def __init__(self, tau: int, M: int, activation_type: str = "anti_rectifier",
+                 use_dropout: bool = True):
+        super().__init__()
+        self.tau = tau
+        self.M = M
+        self.activation_type = activation_type
+        self.use_dropout = use_dropout
+        self.base_unet = CovarianceReconstructionUNet(tau, M, activation_type, use_dropout)
+
+    def forward(self, Rx_tau: torch.Tensor):
+        _, Rz, _ = self.base_unet(Rx_tau)                      # [B, M, M] complex, Hermitian + I
+        if self.training:
+            return {"K_recon": Rz}
+        # fp64 CPU eigh: robust for these small clustered spectra (see
+        # classical_batched.music); results go back to the model's device/dtype.
+        w, V = torch.linalg.eigh(Rz.detach().to("cpu", torch.complex128))
+        w = torch.flip(w, dims=[-1]).to(Rz.device, torch.float32)
+        V = torch.flip(V, dims=[-1]).to(Rz.device, Rz.dtype)
+        return w, V, Rz
+
+
 # EVD-Based UNet Architecture
 class EVDCovarianceReconstructionUNet(nn.Module):
     """

@@ -187,6 +187,13 @@ class ManifestMeta:
     # (paper §II-B, |γ| ≈ 1).  ``0``/``None`` ⇒ white full-band sources (the
     # pre-v1.2 renderer), whose replicas were covariance-incoherent.
     source_bw_frac: Optional[float] = 0.05
+    # Ablation knob (identifiability, reviewer R2-2): when set, EVERY scene is
+    # rendered with the same array-error realisation drawn from this seed
+    # (gain/phase/position/coupling jitter) instead of a per-scene draw.  The
+    # per-scene rng stream is untouched, so sources / noise / multipath are
+    # identical to the randomised rendering of the same scene.  ``None`` =
+    # paper behaviour (randomised per scene).
+    fixed_imperfection_seed: Optional[int] = None
 
     # --- sampling strategy ----------------------------------------------
     K_max: int = K_MAX
@@ -211,6 +218,7 @@ class ManifestMeta:
             "speed_of_light": self.speed_of_light,
             "tau": self.tau,
             "source_bw_frac": self.source_bw_frac,
+            "fixed_imperfection_seed": self.fixed_imperfection_seed,
             "K_max": self.K_max,
             "angle_range_deg": list(self.angle_range_deg),
             "snr_range_db": list(self.snr_range_db),
