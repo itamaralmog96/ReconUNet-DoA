@@ -4,3 +4,11 @@
 2026-09-20 08:08:05 END abl_train_02_rec_only rc=0 elapsed=18min
 2026-09-20 08:08:05 START abl_train_04_no_dom
 2026-09-20 08:08:05 START abl_train_03_rec_proj
+2026-09-20 08:27:07 END abl_train_03_rec_proj rc=0 elapsed=19min
+2026-09-20 08:27:11 END abl_train_04_no_dom rc=0 elapsed=19min
+2026-09-20 08:27:11 START abl_train_06_single_lag
+2026-09-20 08:27:11 START abl_train_05_no_eig
+2026-09-20 08:43:01 END abl_train_06_single_lag rc=0 elapsed=15min
+2026-09-20 08:45:39 END abl_train_05_no_eig rc=0 elapsed=18min
+2026-09-20 08:45:39 START abl_train_07_relu
+2026-09-20 08:45:39 START abl_train_08_no_evd_heads
