@@ -1,0 +1,68 @@
+# --------------------------------------------------------------------------
+# DA-MUSIC (Merkofer et al., ICASSP 2022) — paper-faithful baseline, K=2.
+# --------------------------------------------------------------------------
+#
+# Learned-front-end baseline requested by all three Sensors reviewers next to
+# SubspaceNet.  Vendored upstream model: third_party/subspacenet/src/models.py
+# ::DeepAugmentedMUSIC (unmodified); see
+# src/reconunet/models/third_party/damusic_adapter.py for the batched /
+# Hermitian-PSD forward and the documented deviations.
+#
+# The published DA-MUSIC head is a fixed-width regression (nn.Linear -> M), so
+# following the published protocol we train ONE model per source count on the
+# K-subset of the shared paper corpus (data.k_filter) — same corpus, same
+# renderer, same optimiser schedule as ReconUNet / SubspaceNet / SubViT
+# (Almog & Weiss 2026 §IV: Adam 1e-4, wd 1e-5, batch 2048, <=300 epochs,
+# ReduceLROnPlateau 0.7/5, early stop 25, grad-clip 1.0).  Evaluation
+# dispatches by the true K (K is assumed known for every method).
+#
+# Sibling configs: damusic_paper_k{1,2,3,4}.yaml.  Runner:
+# scripts/run_damusic_full_training.py (trains all four in sequence).
+# --------------------------------------------------------------------------
+
+model:
+  name: damusic
+  adapter_class: reconunet.models.third_party.damusic_adapter.DAMUSICAdapter
+  init:
+    N: 8                              # sensors (paper_corpus M=8)
+    T: 512                            # snapshots (bound by upstream BatchNorm1d(T))
+    M: 2                              # fixed source count of this instance
+    hermitian_psd: true               # R_z = K^H K + eps*I + robust eigh (see adapter)
+    psd_eps: 1.0e-6
+
+collate: damusic                      # raw complex snapshots [B, N, T]
+
+data:
+  config: configs/data/paper_corpus.yaml
+  k_filter: [2]                       # ~500k train / ~12.5k val scenes with K=2
+  batch_size: 2048                    # paper §IV
+  num_workers: 8
+  pin_memory: true
+
+optim:
+  optimizer: adam                     # paper §IV
+  lr: 1.0e-4
+  weight_decay: 1.0e-5
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.7
+    patience: 5
+    min_lr: 1.0e-6
+
+loss:
+  rmspel_weight: 1.0                  # RMSPE on regressed radians (upstream objective)
+
+train:
+  epochs: 300                         # paper §IV
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/damusic_paper/k2/checkpoints/
+  tensorboard_dir: experiments/runs/damusic_paper/k2/tb/
+  early_stopping_patience: 25         # paper §IV
+  amp: false                          # complex tensors + eigh: AMP must stay off
+
+eval:
+  config: configs/eval/evaluation_config.yaml
+
+seed: 20260420

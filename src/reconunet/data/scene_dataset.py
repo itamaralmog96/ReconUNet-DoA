@@ -185,6 +185,25 @@ class SubViTCollate(_BaseCollate):
         }
 
 
+class DAMUSICCollate(_BaseCollate):
+    """Raw complex snapshots ``[B, M, T]`` — DA-MUSIC runs a GRU over time.
+
+    No lag stack and no covariance: the upstream model builds its own learned
+    surrogate covariance from the snapshot sequence.
+    """
+
+    def __call__(self, batch: Sequence[CanonicalSample]) -> Dict[str, torch.Tensor]:
+        snaps = torch.stack([b.snapshots for b in batch], dim=0)   # [B, M, T] complex
+        angles, k, snr, ids = self._stack_common(batch)
+        return {
+            "input":       snaps,
+            "angles_rad":  angles,
+            "n_sources":   k,
+            "snr_db":      snr,
+            "scene_ids":   ids,
+        }
+
+
 # ---------------------------------------------------------------------------
 # Resolver (config-driven lookup)
 # ---------------------------------------------------------------------------
@@ -194,6 +213,7 @@ _COLLATE_REGISTRY: Dict[str, Callable[[ManifestMeta], _BaseCollate]] = {
     "reconunet":   ReconUNetCollate,
     "subspacenet": SubspaceNetCollate,
     "subvit":      SubViTCollate,
+    "damusic":     DAMUSICCollate,
 }
 
 

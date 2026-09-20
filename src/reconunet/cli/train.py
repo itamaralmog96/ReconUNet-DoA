@@ -84,6 +84,13 @@ def _seed_everything(seed: int) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _subset_by_k(manifest: SceneManifest, ks: Sequence[int]) -> SceneManifest:
+    """Rows of ``manifest`` whose ``n_sources`` is in ``ks`` (same meta, copied rows)."""
+    rows = manifest.raw
+    mask = np.isin(rows["n_sources"], np.asarray(list(ks), dtype=rows["n_sources"].dtype))
+    return SceneManifest(np.ascontiguousarray(rows[mask]), manifest.meta)
+
+
 def _build_loaders(train_cfg: dict, project_root: Path) -> tuple[DataLoader, DataLoader, ManifestMeta]:
     data_cfg_path = project_root / train_cfg["data"]["config"]
     data_cfg = _load_yaml(data_cfg_path)
@@ -104,6 +111,19 @@ def _build_loaders(train_cfg: dict, project_root: Path) -> tuple[DataLoader, Dat
 
     train_manifest = SceneManifest.load(str(train_path))
     val_manifest = SceneManifest.load(str(val_path))
+
+    # Optional source-count subset (``data.k_filter: [K]`` or ``K``).  Used by
+    # fixed-head baselines such as DA-MUSIC, whose published protocol trains
+    # one model per source count; the manifests themselves are untouched.
+    k_filter = train_cfg["data"].get("k_filter")
+    if k_filter is not None:
+        ks = sorted({int(k) for k in (k_filter if isinstance(k_filter, (list, tuple)) else [k_filter])})
+        train_manifest = _subset_by_k(train_manifest, ks)
+        val_manifest = _subset_by_k(val_manifest, ks)
+        if len(train_manifest) == 0 or len(val_manifest) == 0:
+            raise ValueError(f"k_filter={ks} selects no scenes in {train_path} / {val_path}")
+        LOG.info("k_filter=%s -> train=%d val=%d scenes", ks, len(train_manifest), len(val_manifest))
+
     meta = train_manifest.meta
     renderer = SceneRenderer(meta)
 
