@@ -26,6 +26,7 @@ from reconunet.evaluation import classical_batched as CB
 from reconunet.evaluation.unified_harness import stochastic_crlb_deg
 from reconunet.models.third_party.subspacenet_adapter import SubspaceNetAdapter
 from reconunet.models.third_party.subvit_adapter import SubViTAdapter
+from reconunet.models.third_party.damusic_adapter import DAMUSICEnsemble
 from reconunet.cli.evaluate import _NativeEVDUNetAdapter
 
 REPO = Path(__file__).resolve().parents[2]
@@ -54,6 +55,8 @@ def main():
     ap.add_argument("--batch", type=int, default=512)
     ap.add_argument("--output-dir", "-o", type=Path, default=REPO/"experiments/runs/table2")
     ap.add_argument("--scenarios-root", type=Path, default=REPO/"data/scenes/scenarios")
+    ap.add_argument("--damusic-dir", type=Path, default=REPO/"experiments/runs/damusic_paper",
+                    help="root holding k<K>/checkpoints/best.pt per source count (skipped if absent)")
     args = ap.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -71,6 +74,7 @@ def main():
     rn_ad = _NativeEVDUNetAdapter("reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet")
     rn = rn_ad.build_model({"M":8,"tau":args.tau,"activation_type":"anti_rectifier","use_dropout":True})
     rn_ad.load_checkpoint(rn, str(REPO/"experiments/runs/reconunet_paper/checkpoints/best.pt")); rn.to(dev).eval()
+    dm = DAMUSICEnsemble.from_run_dir(args.damusic_dir, device=dev)      # per-K models or None
 
     rows = []
     for scen, label, K in SCEN:
@@ -100,6 +104,8 @@ def main():
                     add("SubspaceNet", sq_errs(sn_ad.forward(sn, lag, meta={"tau":args.tau,"n_sources":nsrc}).angles_pred.cpu().numpy()[:, :K], true))
                     sv_in = sv_ad.prepare_input(snaps, {"M":M}).to(dev)
                     add("SubViT", sq_errs(sv_ad.forward(sv, sv_in, meta={"n_sources":nsrc}).angles_pred.cpu().numpy()[:, :K], true))
+                    if dm is not None:
+                        add("DA-MUSIC", sq_errs(dm.predict(snaps.to(dev), nsrc).cpu().numpy()[:, :K], true))
                 for r in true:
                     crlb_sum += stochastic_crlb_deg(M=M, T=T, angles_rad=r[:K], snr_db=float(lvl),
                                                     element_spacing_lambda=meta.element_spacing_lambda)
@@ -117,7 +123,8 @@ def main():
     print(f"\nwrote {csv_path}")
 
     # ---- 0 dB Table-II view ----------------------------------------------
-    order = CLASSICAL + [f"ReconUNet+{b}" for b in RECON_BACKENDS] + ["SubspaceNet","SubViT","CRLB"]
+    order = (CLASSICAL + [f"ReconUNet+{b}" for b in RECON_BACKENDS] + ["SubspaceNet","SubViT"]
+             + (["DA-MUSIC"] if dm is not None else []) + ["CRLB"])
     def get(scen, method):
         r = [x for x in rows if x["scenario"]==scen and x["method"]==method and abs(x["snr_db"])<0.5]
         return r[0]["rmse_deg"] if r else float("nan")

@@ -9,6 +9,8 @@ methods on the SAME scenes:
   * classical ESPRIT          (subspace, on the empirical SCM)
   * SubspaceNet + Root-MUSIC  (per-sample-K differentiable head)
   * SubViT (DOA-ViT)          (grid spatial-spectrum, per-sample-K peak-pick)
+  * DA-MUSIC                  (one fixed-head model per K, dispatched by true K;
+                               skipped with a warning if no checkpoints exist yet)
   * ReconUNet (EVD-UNet)      (covariance reconstruction + Root-MUSIC)
 
 All DL methods see the identical paired scenes; classical methods operate on the
@@ -35,6 +37,7 @@ from reconunet.data.scene_renderer import lag_stack
 from reconunet.models.deep_learning.subspace_models import esprit, root_music
 from reconunet.models.third_party.subspacenet_adapter import SubspaceNetAdapter
 from reconunet.models.third_party.subvit_adapter import SubViTAdapter
+from reconunet.models.third_party.damusic_adapter import DAMUSICEnsemble
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -67,6 +70,9 @@ def main() -> int:
                     default=REPO / "experiments/runs/subvit_paper/checkpoints/best.pt")
     ap.add_argument("--reconunet", type=Path,
                     default=REPO / "experiments/runs/reconunet_paper/checkpoints/best.pt")
+    ap.add_argument("--damusic-dir", type=Path,
+                    default=REPO / "experiments/runs/damusic_paper",
+                    help="root holding k<K>/checkpoints/best.pt per source count")
     ap.add_argument("--tau", type=int, default=8)
     ap.add_argument("--max-per-k", type=int, default=3000, help="cap samples per K bucket")
     ap.add_argument("--batch", type=int, default=1024)
@@ -104,7 +110,10 @@ def main() -> int:
         {"M": M, "tau": args.tau, "activation_type": "anti_rectifier", "use_dropout": True})
     rn_adapter.load_checkpoint(rn_model, str(args.reconunet)); rn_model.to(dev).eval()
 
-    METHODS = ["R-MUSIC", "ESPRIT", "SubspaceNet", "SubViT", "ReconUNet"]
+    # DA-MUSIC: per-K fixed-head models (published protocol), dispatched by true K.
+    dm = DAMUSICEnsemble.from_run_dir(args.damusic_dir, device=dev)
+
+    METHODS = ["R-MUSIC", "ESPRIT", "SubspaceNet", "SubViT"] + (["DA-MUSIC"] if dm else []) + ["ReconUNet"]
     pooled = {m: [] for m in METHODS}     # per-sample errors across all K
     rows = []
 
@@ -132,8 +141,11 @@ def main() -> int:
                 sv_in = sv_adapter.prepare_input(snaps, {"M": M}).to(dev)
                 sv = sv_adapter.forward(sv_model, sv_in,
                                         meta={"n_sources": ns}).angles_pred.cpu().numpy()[:, :K]
-            for name, pred in [("R-MUSIC", rm), ("ESPRIT", es), ("SubspaceNet", sn),
-                               ("SubViT", sv), ("ReconUNet", rn)]:
+                preds = [("R-MUSIC", rm), ("ESPRIT", es), ("SubspaceNet", sn),
+                         ("SubViT", sv), ("ReconUNet", rn)]
+                if dm is not None:
+                    preds.append(("DA-MUSIC", dm.predict(snaps.to(dev), ns).cpu().numpy()[:, :K]))
+            for name, pred in preds:
                 errs[name].append(_sq_err_deg2(pred, true))
         row = {"K": int(K), "n": int(idx.size)}
         for m in METHODS:

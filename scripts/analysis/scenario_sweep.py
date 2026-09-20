@@ -32,6 +32,7 @@ from reconunet.data.scene_renderer import lag_stack
 from reconunet.models.deep_learning.subspace_models import root_music
 from reconunet.models.third_party.subspacenet_adapter import SubspaceNetAdapter
 from reconunet.models.third_party.subvit_adapter import SubViTAdapter
+from reconunet.models.third_party.damusic_adapter import DAMUSICEnsemble
 from reconunet.evaluation.unified_harness import stochastic_crlb_deg
 
 REPO = Path(__file__).resolve().parents[2]
@@ -41,9 +42,10 @@ SCENARIOS = [
     ("advanced1_ood",     "OOD (K=1, +6 coherent)"),
     ("advanced2_crowded", "Crowded (K=4, +3 coherent)"),
 ]
-METHODS = ["Root-MUSIC", "SubspaceNet", "SubViT", "ReconUNet"]
+# "DA-MUSIC" is dropped at runtime when no per-K checkpoints exist yet.
+METHODS = ["Root-MUSIC", "SubspaceNet", "SubViT", "DA-MUSIC", "ReconUNet"]
 COLORS = {"Root-MUSIC": "#888888", "SubspaceNet": "#1f77b4",
-          "SubViT": "#2ca02c", "ReconUNet": "#d62728"}
+          "SubViT": "#2ca02c", "DA-MUSIC": "#9467bd", "ReconUNet": "#d62728"}
 
 
 def _sq_err_deg2(pred_rad, true_rad):
@@ -65,6 +67,8 @@ def main() -> int:
     ap.add_argument("--subspacenet", type=Path, default=REPO / "experiments/runs/subspacenet_paper/checkpoints/best.pt")
     ap.add_argument("--subvit", type=Path, default=REPO / "experiments/runs/subvit_paper/checkpoints/best.pt")
     ap.add_argument("--reconunet", type=Path, default=REPO / "experiments/runs/reconunet_paper/checkpoints/best.pt")
+    ap.add_argument("--damusic-dir", type=Path, default=REPO / "experiments/runs/damusic_paper",
+                    help="root holding k<K>/checkpoints/best.pt per source count")
     ap.add_argument("--output-dir", "-o", type=Path, default=REPO / "experiments/runs/scenario_sweep")
     args = ap.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -85,6 +89,9 @@ def main() -> int:
     rn_ad = _NativeEVDUNetAdapter("reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet")
     rn = rn_ad.build_model({"M": 8, "tau": args.tau, "activation_type": "anti_rectifier", "use_dropout": True})
     rn_ad.load_checkpoint(rn, str(args.reconunet)); rn.to(dev).eval()
+    dm = DAMUSICEnsemble.from_run_dir(args.damusic_dir, device=dev)     # per-K models or None
+    if dm is None:
+        METHODS[:] = [m for m in METHODS if m != "DA-MUSIC"]
 
     rows = []
     for scen, _label in SCENARIOS:
@@ -109,7 +116,10 @@ def main() -> int:
                     rn_p = rn_ad.forward(rn, lag, meta={"tau": args.tau, "n_sources": nsrc}).angles_pred.cpu().numpy()[:, :K]
                     sv_in = sv_ad.prepare_input(snaps, {"M": M}).to(dev)
                     sv_p = sv_ad.forward(sv, sv_in, meta={"n_sources": nsrc}).angles_pred.cpu().numpy()[:, :K]
-                for m, pr in [("Root-MUSIC", rm), ("SubspaceNet", sn_p), ("SubViT", sv_p), ("ReconUNet", rn_p)]:
+                    preds = [("Root-MUSIC", rm), ("SubspaceNet", sn_p), ("SubViT", sv_p), ("ReconUNet", rn_p)]
+                    if dm is not None:
+                        preds.append(("DA-MUSIC", dm.predict(snaps.to(dev), nsrc).cpu().numpy()[:, :K]))
+                for m, pr in preds:
                     acc[m].append(_sq_err_deg2(pr, true))
                 for r in true:
                     crlbs.append(stochastic_crlb_deg(M=M, T=T, angles_rad=r[:K],
@@ -145,9 +155,9 @@ def main() -> int:
         ax.set_yscale("log"); ax.grid(alpha=0.3, which="both")
         ax.set_xlabel("SNR (dB)"); ax.set_ylabel("RMSPE (deg)")
     handles, labels_ = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels_, loc="lower center", ncol=5, fontsize=10,
+    fig.legend(handles, labels_, loc="lower center", ncol=len(METHODS) + 1, fontsize=10,
                bbox_to_anchor=(0.5, -0.02))
-    fig.suptitle("RMSE vs SNR across paper §IV scenarios — ReconUNet vs SubspaceNet vs SubViT vs classical",
+    fig.suptitle("RMSE vs SNR across paper §IV scenarios — ReconUNet vs learned baselines vs classical",
                  fontsize=12, y=0.99)
     fig.tight_layout(rect=(0, 0.03, 1, 0.98))
     png = args.output_dir / "scenario_sweep_grid.png"
