@@ -1,6 +1,6 @@
 # Results status — revision pipeline 2026-09-20
 
-**Last update:** 2026-09-20 07:46 UTC · **pipeline process:** not running · **pipeline log says:** not started
+**Last update:** 2026-09-20 07:49 UTC · **pipeline process:** running · **pipeline log says:** in progress
 
 This page is rewritten by the auto-push watcher every 30 minutes. Links point at the files on `main`.
 
@@ -8,7 +8,9 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 
 ## ETA
 
-- Pending: 26 stages; rough worst-case remaining ≈ 867 min (9 ablation variants ≈ 117 min run two at a time → ≈ 58 min, 3 DA-MUSIC runs ≤ 690 min, evals + extras ≈ 60 min).
+- `abl_train_01_full` running 0 min (a variant takes ≈ 12–15 min)
+- `abl_train_02_rec_only` running 0 min (a variant takes ≈ 12–15 min)
+- Pending: 24 stages; rough worst-case remaining ≈ 841 min (7 ablation variants ≈ 91 min run two at a time → ≈ 45 min, 3 DA-MUSIC runs ≤ 690 min, evals + extras ≈ 60 min).
 
 ## Results (links)
 
@@ -16,7 +18,7 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 |---|---|---|
 | Ablation results (9 variants × eval sets) | ⏳ pending | [experiments/runs/ablation_20260920/ablation_results.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/ablation_20260920/ablation_results.csv) |
 | Route comparison (01_full, 08_no_evd_heads) | ⏳ pending | [experiments/runs/ablation_20260920/route_comparison.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/ablation_20260920/route_comparison.csv) |
-| Ablation status log | ⏳ pending | [experiments/runs/ablation_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/ablation_20260920/status.log) |
+| Ablation status log | ✅ 09-20 07:49 | [experiments/runs/ablation_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/ablation_20260920/status.log) |
 | DA-MUSIC v2: paper test split by K | ⏳ pending | [experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_by_K.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/paper_testset_v2/paper_testset_by_K.csv) |
 | DA-MUSIC v2: scenario sweep | ⏳ pending | [experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/scenario_sweep_v2/scenario_sweep.csv) |
 | DA-MUSIC v2: Table II mild | ⏳ pending | [experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_full.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910/table2_mild_v2/table2_full.csv) |
@@ -29,18 +31,18 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 | Separation sweep | ⏳ pending | [experiments/runs/sweeps_20260920/separation_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/separation_sweep.csv) |
 | FBSS baseline | ⏳ pending | [experiments/runs/sweeps_20260920/fbss_baseline.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/fbss_baseline.csv) |
 | MUSIC verification | ⏳ pending | [experiments/runs/sweeps_20260920/music_verification.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_20260920/music_verification.csv) |
-| Revision facts (docs/revision_facts.md) | ⏳ pending | [docs/revision_facts.md](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_facts.md) |
+| Revision facts (docs/revision_facts.md) | ✅ 09-20 07:46 | [docs/revision_facts.md](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_facts.md) |
 | Revision figures folder | ⏳ pending | [docs/figs_revision](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/figs_revision) |
 | Original 2026-09-10 results + HTML report | ✅ 09-10 11:25 | [experiments/runs/eval_coherent_20260910](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910) |
-| Pipeline master status log | ⏳ pending | [experiments/runs/revision2_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/revision2_20260920/status.log) |
-| Auto-push log | ⏳ pending | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
+| Pipeline master status log | ✅ 09-20 07:49 | [experiments/runs/revision2_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/revision2_20260920/status.log) |
+| Auto-push log | ✅ 09-20 07:49 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
 
 ## Stages
 
 | stage | what | state | started (UTC) | ended | elapsed |
 |---|---|---|---|---|---|
-| `abl_train_01_full` | Ablation train 01_full | ⏳ pending |  |  |  |
-| `abl_train_02_rec_only` | Ablation train 02_rec_only | ⏳ pending |  |  |  |
+| `abl_train_01_full` | Ablation train 01_full | 🔄 running | 2026-09-20 07:49:16 |  |  |
+| `abl_train_02_rec_only` | Ablation train 02_rec_only | 🔄 running | 2026-09-20 07:49:16 |  |  |
 | `abl_train_03_rec_proj` | Ablation train 03_rec_proj | ⏳ pending |  |  |  |
 | `abl_train_04_no_dom` | Ablation train 04_no_dom | ⏳ pending |  |  |  |
 | `abl_train_05_no_eig` | Ablation train 05_no_eig | ⏳ pending |  |  |  |
@@ -65,3 +67,11 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 | `revision_figures` | Revision figures (vector PDF) | ⏳ pending |  |  |  |
 | `music_verification` | Grid-MUSIC verification | ⏳ pending |  |  |  |
 | `facts_extras` | Append sweep/FBSS numbers to revision_facts.md | ⏳ pending |  |  |  |
+
+## Master status log (tail)
+
+```
+2026-09-20 07:49:16 PIPELINE START pid=103994 gpu=NVIDIA RTX 2000 Ada Generation
+2026-09-20 07:49:16 START abl_train_02_rec_only  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/ablation_02_rec_only.yaml)
+2026-09-20 07:49:16 START abl_train_01_full  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/ablation_01_full.yaml)
+```

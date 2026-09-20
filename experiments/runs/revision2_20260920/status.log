@@ -1,0 +1,3 @@
+2026-09-20 07:49:16 PIPELINE START pid=103994 gpu=NVIDIA RTX 2000 Ada Generation
+2026-09-20 07:49:16 START abl_train_02_rec_only  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/ablation_02_rec_only.yaml)
+2026-09-20 07:49:16 START abl_train_01_full  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/ablation_01_full.yaml)
