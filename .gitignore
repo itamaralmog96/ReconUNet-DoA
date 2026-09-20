@@ -120,3 +120,25 @@ ReconUNet_handoff_for_ClaudeCode/
 
 # Tables/figures re-derived from the tracked CSVs (regenerable)
 experiments/runs/eval_coherent_20260910/derived/
+
+# ---- 2026-09-20 revision pipeline: results that MUST be tracked ------------
+# (experiments/runs/* is ignored above; re-include the result directories and the
+#  status logs; checkpoints, TensorBoard events and bulky training logs stay out)
+!experiments/runs/revision2_20260920/
+experiments/runs/revision2_20260920/*.log
+!experiments/runs/revision2_20260920/status.log
+experiments/runs/revision2_20260920/pipeline.pid
+!experiments/runs/ablation_20260920/
+experiments/runs/ablation_20260920/**/tb/
+!experiments/runs/ablation_20260920/status.log
+!experiments/runs/sweeps_20260920/
+!experiments/runs/damusic_paper/
+experiments/runs/damusic_paper/*
+!experiments/runs/damusic_paper/k*_v2/
+experiments/runs/damusic_paper/k*_v2/tb/
+!experiments/runs/damusic_paper/status*.log
+!experiments/runs/revision_retrain_20260906/
+experiments/runs/revision_retrain_20260906/*
+!experiments/runs/revision_retrain_20260906/status.log
+!experiments/runs/autopush.log
+experiments/runs/autopush.pid
