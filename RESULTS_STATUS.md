@@ -33,7 +33,7 @@ This page is rewritten by the auto-push watcher every 30 minutes. Links point at
 | Revision figures folder | ✅ 09-20 19:28 | [docs/figs_revision](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/figs_revision) |
 | Original 2026-09-10 results + HTML report | ✅ 09-20 19:24 | [experiments/runs/eval_coherent_20260910](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_coherent_20260910) |
 | Pipeline master status log | ✅ 09-20 19:28 | [experiments/runs/revision2_20260920/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/revision2_20260920/status.log) |
-| Auto-push log | ✅ 09-20 19:20 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
+| Auto-push log | ✅ 09-20 19:50 | [experiments/runs/autopush.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/autopush.log) |
 
 ## Stages
 
