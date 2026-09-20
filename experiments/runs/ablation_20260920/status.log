@@ -1,2 +1,6 @@
 2026-09-20 07:49:16 START abl_train_02_rec_only
 2026-09-20 07:49:16 START abl_train_01_full
+2026-09-20 08:08:03 END abl_train_01_full rc=0 elapsed=18min
+2026-09-20 08:08:05 END abl_train_02_rec_only rc=0 elapsed=18min
+2026-09-20 08:08:05 START abl_train_04_no_dom
+2026-09-20 08:08:05 START abl_train_03_rec_proj
