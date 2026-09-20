@@ -15,3 +15,6 @@
 2026-09-20 09:04:19 END abl_train_08_no_evd_heads rc=0 elapsed=18min
 2026-09-20 09:04:21 END abl_train_07_relu rc=0 elapsed=18min
 2026-09-20 09:04:21 START abl_train_09_fixed_imperf
+2026-09-20 09:20:12 END abl_train_09_fixed_imperf rc=0 elapsed=15min
+2026-09-20 09:20:12 START abl_eval
+2026-09-20 09:22:15 END abl_eval rc=0 elapsed=2min

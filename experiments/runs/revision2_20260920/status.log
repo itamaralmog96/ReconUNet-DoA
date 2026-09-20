@@ -16,3 +16,11 @@
 2026-09-20 09:04:19 END abl_train_08_no_evd_heads rc=0 elapsed=18min
 2026-09-20 09:04:21 END abl_train_07_relu rc=0 elapsed=18min
 2026-09-20 09:04:21 START abl_train_09_fixed_imperf  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/ablation_09_fixed_imperf.yaml)
+2026-09-20 09:20:12 END abl_train_09_fixed_imperf rc=0 elapsed=15min
+2026-09-20 09:20:12 START abl_eval  (DOA_env/bin/python scripts/analysis/ablation_eval.py --ablation-dir experiments/runs/ablation_20260920)
+2026-09-20 09:22:15 END abl_eval rc=0 elapsed=2min
+2026-09-20 09:22:15 START facts_ablation  (bash -c 
+  DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Ablation — reduced protocol (10 % seeded subset, 40 epochs), Root-MUSIC back end' --csv experiments/runs/ablation_20260920/ablation_results.csv      --note 'Columns: pooled RMSE (paper eq. 31), median per-scene RMSPE, relative covariance error ||R_hat-R*||_F/||R*||_F, leading-K projector distance ||P_hat-P*||_F, relative eigengap error |gap_hat-gap*|/gap* (all from eigh(R_hat)); eval sets: paper test split (3000 scenes per K), Moderate and Crowded at 0 dB (1000 scenes), and for 01/09 the paper test split rendered with the single fixed imperfection realisation used to train 09.' &&
+  DOA_env/bin/python scripts/analysis/revision_facts.py append-csv --title 'Route comparison — covariance route (eigh of R_hat) vs subspace route (EVD-head eigenvectors)' --csv experiments/runs/ablation_20260920/route_comparison.csv)
+2026-09-20 09:22:17 END facts_ablation rc=0 elapsed=0min
+2026-09-20 09:22:17 START damusic_k2_v2  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/damusic_paper_k2_v2.yaml)

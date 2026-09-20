@@ -1,0 +1,17 @@
+variant,eval_set,route,batch_size,rmse_deg,median_rmspe_deg,latency_ms_per_scene,orthogonality_residual,n_scenes,note
+01_full,paper_test,covariance,1024,9.223517417907715,1.2815570831298828,0.13452166877686977,1.918538962953086e-15,12000,eigh(R_hat) -> Root-MUSIC
+01_full,paper_test,subspace,1024,9.223501205444336,1.2815492153167725,0.12065098745127519,8.696540285346852e-07,12000,EVD-head eigenvectors used directly (no eigh)
+01_full,paper_test,covariance,1,nan,nan,1.6280514391837642,nan,256,batch-1 latency only
+01_full,paper_test,subspace,1,nan,nan,1.4717096200911328,nan,256,batch-1 latency only
+01_full,moderate_0dB,covariance,1024,4.044791221618652,0.8196240663528442,0.07453763857483864,1.8919566878870154e-15,1000,eigh(R_hat) -> Root-MUSIC
+01_full,moderate_0dB,subspace,1024,4.044791221618652,0.8196199536323547,0.16015390865504742,8.93760747903796e-07,1000,EVD-head eigenvectors used directly (no eigh)
+01_full,moderate_0dB,covariance,1,nan,nan,1.6130199510371312,nan,256,batch-1 latency only
+01_full,moderate_0dB,subspace,1,nan,nan,1.4929339740774594,nan,256,batch-1 latency only
+08_no_evd_heads,paper_test,covariance,1024,6.050111770629883,0.8445758819580078,0.15260041318833828,2.186750605041009e-15,12000,eigh(R_hat) -> Root-MUSIC
+08_no_evd_heads,paper_test,subspace,1024,6.050111770629883,0.8445720672607422,0.10145441178853314,1.0492099487431946e-07,12000,no EVD heads: eigenvectors from eigh(R_hat); routes coincide by construction
+08_no_evd_heads,paper_test,covariance,1,nan,nan,1.1660056770779192,nan,256,batch-1 latency only
+08_no_evd_heads,paper_test,subspace,1,nan,nan,1.05833332054317,nan,256,batch-1 latency only
+08_no_evd_heads,moderate_0dB,covariance,1024,1.8917992115020752,0.5198676586151123,0.05954727157950401,2.1799084373399116e-15,1000,eigh(R_hat) -> Root-MUSIC
+08_no_evd_heads,moderate_0dB,subspace,1024,1.891798734664917,0.5198879241943359,0.06303276680409908,1.0573040957299686e-07,1000,no EVD heads: eigenvectors from eigh(R_hat); routes coincide by construction
+08_no_evd_heads,moderate_0dB,covariance,1,nan,nan,1.16876199899707,nan,256,batch-1 latency only
+08_no_evd_heads,moderate_0dB,subspace,1,nan,nan,1.0670134870451875,nan,256,batch-1 latency only

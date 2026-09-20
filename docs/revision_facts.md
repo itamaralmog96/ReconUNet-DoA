@@ -258,3 +258,64 @@ vendored module's own parameters and ordering.
 
 
 <!-- AUTO-APPEND BELOW: result sections are appended by the pipeline -->
+
+## Ablation — reduced protocol (10 % seeded subset, 40 epochs), Root-MUSIC back end
+
+_Appended 2026-09-20 09:22 UTC from `experiments/runs/ablation_20260920/ablation_results.csv`._
+
+Columns: pooled RMSE (paper eq. 31), median per-scene RMSPE, relative covariance error ||R_hat-R*||_F/||R*||_F, leading-K projector distance ||P_hat-P*||_F, relative eigengap error |gap_hat-gap*|/gap* (all from eigh(R_hat)); eval sets: paper test split (3000 scenes per K), Moderate and Crowded at 0 dB (1000 scenes), and for 01/09 the paper test split rendered with the single fixed imperfection realisation used to train 09.
+
+| variant | eval_set | pooled_rmse_deg | median_rmspe_deg | cov_err_frob | subspace_dist_projF | eigengap_err | n_scenes |
+|---|---|---|---|---|---|---|---|
+| 01_full | paper_test | 9.224 | 1.282 | 0.357 | 0.534 | 0.128 | 12000 |
+| 01_full | moderate_0dB | 4.045 | 0.820 | 0.270 | 0.366 | 0.085 | 1000 |
+| 01_full | crowded_0dB | 9.388 | 2.002 | 0.384 | 0.779 | 0.218 | 1000 |
+| 01_full | paper_test_fixed_imperf | 9.251 | 1.261 | 0.356 | 0.533 | 0.127 | 12000 |
+| 02_rec_only | paper_test | 7.275 | 1.001 | 0.288 | 0.380 | 0.134 | 12000 |
+| 02_rec_only | moderate_0dB | 3.686 | 0.611 | 0.211 | 0.231 | 0.085 | 1000 |
+| 02_rec_only | crowded_0dB | 7.015 | 1.664 | 0.326 | 0.569 | 0.208 | 1000 |
+| 03_rec_proj | paper_test | 7.032 | 1.008 | 0.286 | 0.376 | 0.134 | 12000 |
+| 03_rec_proj | moderate_0dB | 3.631 | 0.607 | 0.209 | 0.227 | 0.087 | 1000 |
+| 03_rec_proj | crowded_0dB | 6.709 | 1.659 | 0.326 | 0.569 | 0.217 | 1000 |
+| 04_no_dom | paper_test | 9.426 | 1.202 | 0.365 | 0.504 | 0.121 | 12000 |
+| 04_no_dom | moderate_0dB | 4.145 | 0.741 | 0.266 | 0.338 | 0.071 | 1000 |
+| 04_no_dom | crowded_0dB | 9.999 | 2.053 | 0.398 | 0.723 | 0.213 | 1000 |
+| 05_no_eig | paper_test | 7.373 | 1.055 | 0.291 | 0.417 | 0.156 | 12000 |
+| 05_no_eig | moderate_0dB | 1.845 | 0.628 | 0.207 | 0.255 | 0.130 | 1000 |
+| 05_no_eig | crowded_0dB | 7.196 | 1.705 | 0.329 | 0.631 | 0.229 | 1000 |
+| 06_single_lag | paper_test | 9.870 | 1.274 | 0.361 | 0.551 | 0.140 | 12000 |
+| 06_single_lag | moderate_0dB | 6.076 | 0.789 | 0.270 | 0.367 | 0.100 | 1000 |
+| 06_single_lag | crowded_0dB | 9.537 | 2.034 | 0.384 | 0.795 | 0.238 | 1000 |
+| 07_relu | paper_test | 8.542 | 1.178 | 0.332 | 0.494 | 0.105 | 12000 |
+| 07_relu | moderate_0dB | 3.348 | 0.742 | 0.247 | 0.334 | 0.065 | 1000 |
+| 07_relu | crowded_0dB | 8.445 | 1.906 | 0.367 | 0.727 | 0.200 | 1000 |
+| 08_no_evd_heads | paper_test | 6.050 | 0.845 | 0.217 | 0.265 | 0.204 | 12000 |
+| 08_no_evd_heads | moderate_0dB | 1.892 | 0.520 | 0.144 | 0.153 | 0.121 | 1000 |
+| 08_no_evd_heads | crowded_0dB | 4.713 | 1.338 | 0.223 | 0.393 | 0.280 | 1000 |
+| 09_fixed_imperf | paper_test | 9.266 | 1.268 | 0.355 | 0.531 | 0.119 | 12000 |
+| 09_fixed_imperf | moderate_0dB | 4.538 | 0.811 | 0.266 | 0.364 | 0.066 | 1000 |
+| 09_fixed_imperf | crowded_0dB | 9.742 | 1.995 | 0.382 | 0.769 | 0.206 | 1000 |
+| 09_fixed_imperf | paper_test_fixed_imperf | 9.235 | 1.228 | 0.351 | 0.524 | 0.119 | 12000 |
+
+## Route comparison — covariance route (eigh of R_hat) vs subspace route (EVD-head eigenvectors)
+
+_Appended 2026-09-20 09:22 UTC from `experiments/runs/ablation_20260920/route_comparison.csv`._
+
+| variant | eval_set | route | batch_size | rmse_deg | median_rmspe_deg | latency_ms_per_scene | orthogonality_residual | n_scenes | note |
+|---|---|---|---|---|---|---|---|---|---|
+| 01_full | paper_test | covariance | 1024 | 9.224 | 1.282 | 0.135 | 0.000 | 12000 | eigh(R_hat) -> Root-MUSIC |
+| 01_full | paper_test | subspace | 1024 | 9.224 | 1.282 | 0.121 | 0.000 | 12000 | EVD-head eigenvectors used directly (no eigh) |
+| 01_full | paper_test | covariance | 1 |  |  | 1.628 |  | 256 | batch-1 latency only |
+| 01_full | paper_test | subspace | 1 |  |  | 1.472 |  | 256 | batch-1 latency only |
+| 01_full | moderate_0dB | covariance | 1024 | 4.045 | 0.820 | 0.075 | 0.000 | 1000 | eigh(R_hat) -> Root-MUSIC |
+| 01_full | moderate_0dB | subspace | 1024 | 4.045 | 0.820 | 0.160 | 0.000 | 1000 | EVD-head eigenvectors used directly (no eigh) |
+| 01_full | moderate_0dB | covariance | 1 |  |  | 1.613 |  | 256 | batch-1 latency only |
+| 01_full | moderate_0dB | subspace | 1 |  |  | 1.493 |  | 256 | batch-1 latency only |
+| 08_no_evd_heads | paper_test | covariance | 1024 | 6.050 | 0.845 | 0.153 | 0.000 | 12000 | eigh(R_hat) -> Root-MUSIC |
+| 08_no_evd_heads | paper_test | subspace | 1024 | 6.050 | 0.845 | 0.101 | 0.000 | 12000 | no EVD heads: eigenvectors from eigh(R_hat); routes coincide by construction |
+| 08_no_evd_heads | paper_test | covariance | 1 |  |  | 1.166 |  | 256 | batch-1 latency only |
+| 08_no_evd_heads | paper_test | subspace | 1 |  |  | 1.058 |  | 256 | batch-1 latency only |
+| 08_no_evd_heads | moderate_0dB | covariance | 1024 | 1.892 | 0.520 | 0.060 | 0.000 | 1000 | eigh(R_hat) -> Root-MUSIC |
+| 08_no_evd_heads | moderate_0dB | subspace | 1024 | 1.892 | 0.520 | 0.063 | 0.000 | 1000 | no EVD heads: eigenvectors from eigh(R_hat); routes coincide by construction |
+| 08_no_evd_heads | moderate_0dB | covariance | 1 |  |  | 1.169 |  | 256 | batch-1 latency only |
+| 08_no_evd_heads | moderate_0dB | subspace | 1 |  |  | 1.067 |  | 256 | batch-1 latency only |
