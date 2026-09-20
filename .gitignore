@@ -90,3 +90,33 @@ venv/
 # ---- Local scratch/data dumps (not for the repo) ----
 Data/
 test_output/
+
+# ---- Revision results that ARE tracked (CSVs, HTML report, plots) ----------
+# experiments/runs/* is ignored above; re-include the 2026-09-10 evaluation
+# directory so the result CSVs, the standalone HTML report and the sweep
+# figure ship with the code.  Checkpoints stay excluded by *.pt / *.pth.
+!experiments/runs/eval_coherent_20260910/
+experiments/runs/eval_coherent_20260910/driver.out
+
+# ---- Training logs / detached-run output (10-30 MB per stage) -------------
+experiments/runs/**/*.log
+!experiments/runs/eval_coherent_20260910/*.log
+*.out
+nohup.out
+*.tfevents.*
+
+# ---- Rendered / cached data anywhere under data/ (regenerable) -------------
+data/**/*.npy
+data/**/*.h5
+data/**/*.npz
+
+# ---- Checkpoints (all formats, anywhere) -----------------------------------
+*.ckpt
+*.pt
+*.pth
+
+# ---- Manuscript / peer-review handoff bundle (not part of the code release)
+ReconUNet_handoff_for_ClaudeCode/
+
+# Tables/figures re-derived from the tracked CSVs (regenerable)
+experiments/runs/eval_coherent_20260910/derived/
