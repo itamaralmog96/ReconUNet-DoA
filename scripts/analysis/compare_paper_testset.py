@@ -78,6 +78,8 @@ def main() -> int:
     ap.add_argument("--batch", type=int, default=1024)
     ap.add_argument("--output-dir", "-o", type=Path,
                     default=REPO / "experiments/runs/eval_paper_3way")
+    ap.add_argument("--dump-errors", type=Path, default=None,
+                    help="also save per-scene per-source squared errors (deg^2) to this .npz for bootstrap CIs")
     args = ap.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -115,7 +117,7 @@ def main() -> int:
 
     METHODS = ["R-MUSIC", "ESPRIT", "SubspaceNet", "SubViT"] + (["DA-MUSIC"] if dm else []) + ["ReconUNet"]
     pooled = {m: [] for m in METHODS}     # per-sample errors across all K
-    rows = []
+    rows = []; dump = {}
 
     for K in sorted(np.unique(n_src_all)):
         if K < 1:
@@ -150,6 +152,8 @@ def main() -> int:
         row = {"K": int(K), "n": int(idx.size)}
         for m in METHODS:
             e = np.concatenate(errs[m], axis=0); pooled[m].append(e)
+            if args.dump_errors is not None:
+                dump[f"K={int(K)}||{m}"] = e.astype(np.float32)                    # [n, K] deg^2
             # median of per-sample RMSPE (robust) + the paper's pooled RMSE
             row[f"{m}_med"] = float(np.median(np.sqrt(e.mean(axis=-1))))
             row[f"{m}_mean"] = float(np.sqrt(e.mean()))
@@ -181,6 +185,9 @@ def main() -> int:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         w.writeheader(); w.writerows(rows)
     print(f"\nwrote {csv_path}")
+    if args.dump_errors is not None:
+        args.dump_errors.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(args.dump_errors, **dump); print(f"wrote {args.dump_errors}")
     return 0
 
 

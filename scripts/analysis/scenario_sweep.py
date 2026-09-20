@@ -70,6 +70,8 @@ def main() -> int:
     ap.add_argument("--damusic-dir", type=Path, default=REPO / "experiments/runs/damusic_paper",
                     help="root holding k<K>/checkpoints/best.pt per source count")
     ap.add_argument("--output-dir", "-o", type=Path, default=REPO / "experiments/runs/scenario_sweep")
+    ap.add_argument("--dump-errors", type=Path, default=None,
+                    help="also save per-scene per-source squared errors (deg^2) to this .npz for bootstrap CIs")
     args = ap.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -93,7 +95,7 @@ def main() -> int:
     if dm is None:
         METHODS[:] = [m for m in METHODS if m != "DA-MUSIC"]
 
-    rows = []
+    rows = []; dump = {}
     for scen, _label in SCENARIOS:
         man = SceneManifest.load(str(REPO / f"data/scenes/scenarios/{scen}/test.npy"))
         ds = SceneDataset(man); meta = man.meta; M = int(meta.M); T = int(meta.T)
@@ -128,7 +130,10 @@ def main() -> int:
             rec = {"scenario": scen, "snr_db": float(lvl), "n": int(idx.size),
                    "crlb_deg": float(np.sqrt(np.nanmean(np.array(crlbs))))}
             for m in METHODS:
-                rec[m] = float(np.sqrt(np.concatenate(acc[m]).mean()))   # pooled RMSE (eq 31)
+                e_all = np.concatenate(acc[m])
+                rec[m] = float(np.sqrt(e_all.mean()))   # pooled RMSE (eq 31)
+                if args.dump_errors is not None:
+                    dump[f"{scen}|{float(lvl):g}|{m}"] = e_all.astype(np.float32)      # [n, K] deg^2
             rows.append(rec)
             print(f"[sweep] {scen:18s} SNR={lvl:+.0f}  " +
                   "  ".join(f"{m}={rec[m]:.2f}" for m in METHODS) + f"  CRLB={rec['crlb_deg']:.3f}")
@@ -137,6 +142,9 @@ def main() -> int:
     with csv_path.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
     print(f"\nwrote {csv_path}")
+    if args.dump_errors is not None:
+        args.dump_errors.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(args.dump_errors, **dump); print(f"wrote {args.dump_errors}")
 
     # ---- 2x2 grid plot ----------------------------------------------------
     import matplotlib

@@ -57,6 +57,8 @@ def main():
     ap.add_argument("--scenarios-root", type=Path, default=REPO/"data/scenes/scenarios")
     ap.add_argument("--damusic-dir", type=Path, default=REPO/"experiments/runs/damusic_paper",
                     help="root holding k<K>/checkpoints/best.pt per source count (skipped if absent)")
+    ap.add_argument("--dump-errors", type=Path, default=None,
+                    help="also save per-scene per-source squared errors (deg^2) to this .npz for bootstrap CIs")
     args = ap.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,7 +78,7 @@ def main():
     rn_ad.load_checkpoint(rn, str(REPO/"experiments/runs/reconunet_paper/checkpoints/best.pt")); rn.to(dev).eval()
     dm = DAMUSICEnsemble.from_run_dir(args.damusic_dir, device=dev)      # per-K models or None
 
-    rows = []
+    rows = []; dump = {}
     for scen, label, K in SCEN:
         man = SceneManifest.load(str(args.scenarios_root/f"{scen}/test.npy"))
         ds = SceneDataset(man); meta = man.meta; M = int(meta.M); T = int(meta.T)
@@ -84,8 +86,11 @@ def main():
         for lvl in sorted(np.unique(np.round(snr_all))):
             idx = np.where(np.abs(snr_all - lvl) < 1.0)[0]
             if idx.size == 0: continue
-            acc = {}; crlb_sum = 0.0; crlb_n = 0
-            def add(method, e): acc.setdefault(method, [0.0, 0]); acc[method][0] += e.sum(); acc[method][1] += e.size
+            acc = {}; crlb_sum = 0.0; crlb_n = 0; per_scene = {}
+            def add(method, e):
+                acc.setdefault(method, [0.0, 0]); acc[method][0] += e.sum(); acc[method][1] += e.size
+                if args.dump_errors is not None:
+                    per_scene.setdefault(method, []).append(e.reshape(-1, K).astype(np.float32))
             for chunk in _chunks(idx.tolist(), args.batch):
                 snaps = torch.stack([ds[int(i)].snapshots for i in chunk], 0)
                 true = np.stack([ds[int(i)].angles_rad.numpy()[:K] for i in chunk])
@@ -115,12 +120,17 @@ def main():
                              "rmse_deg": float(np.sqrt(ssum / n)), "n": int(idx.size)})
             rows.append({"scenario": scen, "snr_db": float(lvl), "method": "CRLB",
                          "rmse_deg": float(np.sqrt(crlb_sum / crlb_n)), "n": int(idx.size)})
+            for method, chunks_ in per_scene.items():
+                dump[f"{scen}|{float(lvl):g}|{method}"] = np.concatenate(chunks_, 0)        # [n, K] deg^2
             print(f"[t2] {scen:18s} SNR={lvl:+.0f} done")
 
     csv_path = args.output_dir / "table2_full.csv"
     with csv_path.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["scenario","snr_db","method","rmse_deg","n"]); w.writeheader(); w.writerows(rows)
     print(f"\nwrote {csv_path}")
+    if args.dump_errors is not None:
+        args.dump_errors.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(args.dump_errors, **dump); print(f"wrote {args.dump_errors}")
 
     # ---- 0 dB Table-II view ----------------------------------------------
     order = (CLASSICAL + [f"ReconUNet+{b}" for b in RECON_BACKENDS] + ["SubspaceNet","SubViT"]
