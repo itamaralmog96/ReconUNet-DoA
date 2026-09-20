@@ -1,0 +1,17 @@
+[cmp] device=cuda  manifest=data/scenes/paper/test.npy  max_per_k=3000
+[damusic] loaded per-K models for K=[1, 2, 3, 4]
+[cmp] K=1 done (n=3000)
+[cmp] K=2 done (n=3000)
+[cmp] K=3 done (n=3000)
+[cmp] K=4 done (n=3000)
+
+Paper test set — deg: median-RMSPE (pooled RMSE, paper eq 31), direct-path angles, true per-sample K
+  K     n |          R-MUSIC           ESPRIT      SubspaceNet           SubViT         DA-MUSIC        ReconUNet
+-----------------------------------------------------------------------------------------------------------------
+  1  3000 |   1.14 ( 26.37)   4.94 ( 23.45)   1.42 ( 13.62)   0.53 ( 13.87)   4.09 ( 16.25)   0.75 ( 12.49)
+  2  3000 |   0.79 ( 14.21)   2.60 ( 12.49)   1.44 (  8.17)   0.53 ( 15.24)   3.02 (  8.39)   0.84 (  6.04)
+  3  3000 |   0.77 (  9.71)   1.82 (  8.79)   1.74 (  7.57)   0.59 ( 15.92)   3.29 (  6.60)   0.98 (  3.73)
+  4  3000 |   0.67 (  6.41)   1.15 (  5.41)   2.06 (  7.24)   0.67 ( 14.31)   3.25 (  5.26)   1.12 (  4.00)
+all 12000 |   0.80 ( 12.43)   2.15 ( 11.00)   1.70 (  8.37)   0.58 ( 14.95)   3.31 (  8.04)   0.94 (  5.79)
+
+wrote experiments/runs/eval_coherent_20260910/paper_testset/paper_testset_by_K.csv

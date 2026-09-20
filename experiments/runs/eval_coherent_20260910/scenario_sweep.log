@@ -1,0 +1,41 @@
+[sweep] device=cuda
+[damusic] loaded per-K models for K=[1, 2, 3, 4]
+[sweep] basic              SNR=-20  Root-MUSIC=40.12  SubspaceNet=40.77  SubViT=36.12  DA-MUSIC=36.59  ReconUNet=44.48  CRLB=4.148
+[sweep] basic              SNR=-15  Root-MUSIC=4.76  SubspaceNet=15.10  SubViT=11.71  DA-MUSIC=30.12  ReconUNet=4.39  CRLB=1.413
+[sweep] basic              SNR=-10  Root-MUSIC=0.58  SubspaceNet=0.94  SubViT=0.67  DA-MUSIC=8.31  ReconUNet=0.68  CRLB=0.535
+[sweep] basic              SNR=-5  Root-MUSIC=0.32  SubspaceNet=0.55  SubViT=0.44  DA-MUSIC=2.78  ReconUNet=0.45  CRLB=0.237
+[sweep] basic              SNR=+0  Root-MUSIC=0.25  SubspaceNet=0.54  SubViT=0.38  DA-MUSIC=2.13  ReconUNet=0.37  CRLB=0.120
+[sweep] basic              SNR=+5  Root-MUSIC=0.23  SubspaceNet=0.55  SubViT=0.38  DA-MUSIC=2.03  ReconUNet=0.35  CRLB=0.065
+[sweep] basic              SNR=+10  Root-MUSIC=0.23  SubspaceNet=0.57  SubViT=0.37  DA-MUSIC=2.01  ReconUNet=0.34  CRLB=0.036
+[sweep] basic              SNR=+15  Root-MUSIC=0.23  SubspaceNet=0.57  SubViT=0.37  DA-MUSIC=2.00  ReconUNet=0.34  CRLB=0.020
+[sweep] basic              SNR=+20  Root-MUSIC=0.23  SubspaceNet=0.57  SubViT=0.38  DA-MUSIC=2.00  ReconUNet=0.34  CRLB=0.011
+[sweep] moderate           SNR=-20  Root-MUSIC=31.69  SubspaceNet=32.03  SubViT=34.89  DA-MUSIC=28.98  ReconUNet=31.95  CRLB=4.894
+[sweep] moderate           SNR=-15  Root-MUSIC=12.87  SubspaceNet=15.87  SubViT=34.78  DA-MUSIC=20.80  ReconUNet=5.24  CRLB=1.660
+[sweep] moderate           SNR=-10  Root-MUSIC=6.60  SubspaceNet=4.89  SubViT=21.26  DA-MUSIC=6.08  ReconUNet=1.87  CRLB=0.623
+[sweep] moderate           SNR=-5  Root-MUSIC=5.88  SubspaceNet=2.97  SubViT=11.50  DA-MUSIC=4.04  ReconUNet=1.81  CRLB=0.273
+[sweep] moderate           SNR=+0  Root-MUSIC=5.91  SubspaceNet=2.92  SubViT=8.72  DA-MUSIC=3.71  ReconUNet=1.79  CRLB=0.137
+[sweep] moderate           SNR=+5  Root-MUSIC=5.91  SubspaceNet=3.22  SubViT=7.26  DA-MUSIC=3.66  ReconUNet=1.78  CRLB=0.074
+[sweep] moderate           SNR=+10  Root-MUSIC=6.00  SubspaceNet=3.22  SubViT=6.42  DA-MUSIC=3.65  ReconUNet=1.78  CRLB=0.041
+[sweep] moderate           SNR=+15  Root-MUSIC=6.00  SubspaceNet=3.76  SubViT=6.13  DA-MUSIC=3.64  ReconUNet=1.78  CRLB=0.023
+[sweep] moderate           SNR=+20  Root-MUSIC=6.00  SubspaceNet=3.22  SubViT=5.71  DA-MUSIC=3.63  ReconUNet=1.78  CRLB=0.013
+[sweep] advanced1_ood      SNR=-20  Root-MUSIC=47.51  SubspaceNet=38.98  SubViT=37.25  DA-MUSIC=36.35  ReconUNet=49.00  CRLB=4.160
+[sweep] advanced1_ood      SNR=-15  Root-MUSIC=41.61  SubspaceNet=28.09  SubViT=34.06  DA-MUSIC=33.56  ReconUNet=28.87  CRLB=1.417
+[sweep] advanced1_ood      SNR=-10  Root-MUSIC=41.19  SubspaceNet=20.92  SubViT=26.04  DA-MUSIC=25.44  ReconUNet=22.32  CRLB=0.537
+[sweep] advanced1_ood      SNR=-5  Root-MUSIC=41.17  SubspaceNet=21.64  SubViT=24.16  DA-MUSIC=24.17  ReconUNet=22.64  CRLB=0.238
+[sweep] advanced1_ood      SNR=+0  Root-MUSIC=40.95  SubspaceNet=21.49  SubViT=23.60  DA-MUSIC=24.28  ReconUNet=23.04  CRLB=0.120
+[sweep] advanced1_ood      SNR=+5  Root-MUSIC=41.11  SubspaceNet=21.69  SubViT=23.81  DA-MUSIC=24.27  ReconUNet=22.85  CRLB=0.065
+[sweep] advanced1_ood      SNR=+10  Root-MUSIC=40.88  SubspaceNet=21.97  SubViT=23.90  DA-MUSIC=24.29  ReconUNet=22.87  CRLB=0.036
+[sweep] advanced1_ood      SNR=+15  Root-MUSIC=41.03  SubspaceNet=21.97  SubViT=24.04  DA-MUSIC=24.30  ReconUNet=22.82  CRLB=0.020
+[sweep] advanced1_ood      SNR=+20  Root-MUSIC=41.02  SubspaceNet=21.88  SubViT=24.09  DA-MUSIC=24.30  ReconUNet=22.93  CRLB=0.011
+[sweep] advanced2_crowded  SNR=-20  Root-MUSIC=21.02  SubspaceNet=21.73  SubViT=30.32  DA-MUSIC=20.54  ReconUNet=18.43  CRLB=8.352
+[sweep] advanced2_crowded  SNR=-15  Root-MUSIC=14.66  SubspaceNet=13.55  SubViT=32.97  DA-MUSIC=12.21  ReconUNet=7.92  CRLB=2.798
+[sweep] advanced2_crowded  SNR=-10  Root-MUSIC=9.89  SubspaceNet=9.17  SubViT=22.36  DA-MUSIC=7.52  ReconUNet=5.38  CRLB=1.023
+[sweep] advanced2_crowded  SNR=-5  Root-MUSIC=9.01  SubspaceNet=8.14  SubViT=17.58  DA-MUSIC=6.91  ReconUNet=4.87  CRLB=0.432
+[sweep] advanced2_crowded  SNR=+0  Root-MUSIC=8.87  SubspaceNet=7.91  SubViT=16.32  DA-MUSIC=6.82  ReconUNet=4.80  CRLB=0.210
+[sweep] advanced2_crowded  SNR=+5  Root-MUSIC=8.93  SubspaceNet=7.91  SubViT=16.34  DA-MUSIC=6.81  ReconUNet=4.77  CRLB=0.112
+[sweep] advanced2_crowded  SNR=+10  Root-MUSIC=8.81  SubspaceNet=7.90  SubViT=16.19  DA-MUSIC=6.80  ReconUNet=4.77  CRLB=0.062
+[sweep] advanced2_crowded  SNR=+15  Root-MUSIC=8.81  SubspaceNet=7.96  SubViT=16.06  DA-MUSIC=6.80  ReconUNet=4.79  CRLB=0.034
+[sweep] advanced2_crowded  SNR=+20  Root-MUSIC=8.81  SubspaceNet=7.91  SubViT=16.22  DA-MUSIC=6.80  ReconUNet=4.79  CRLB=0.019
+
+wrote experiments/runs/eval_coherent_20260910/scenario_sweep/scenario_sweep.csv
+wrote experiments/runs/eval_coherent_20260910/scenario_sweep/scenario_sweep_grid.png

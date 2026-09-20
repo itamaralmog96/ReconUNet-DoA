@@ -1,0 +1,434 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ReconUNet Revision Results</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f4f6f9; --surface:#fbfcfd; --ink:#10161f; --ink-2:#4c5865; --muted:#7c8794;
+  --hair:#e2e6eb; --axis:#c9d0d8; --border:rgba(16,22,31,.10);
+  --accent:#1c5cab; --mark:#2a78d6; --mark-dim:#b8c0ca; --tint:rgba(42,120,214,.08);
+  --ramp1:#86b6ef; --ramp2:#3987e5; --ramp3:#1c5cab; --ramp4:#0d366b;
+  --tip-bg:#10161f; --tip-ink:#f4f6f9;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0e1116; --surface:#171b21; --ink:#eef2f7; --ink-2:#b4bdc8; --muted:#85909d;
+    --hair:#262c35; --axis:#343c47; --border:rgba(255,255,255,.10);
+    --accent:#86b6ef; --mark:#5598e7; --mark-dim:#4a5462; --tint:rgba(85,152,231,.14);
+    --ramp1:#9ec5f4; --ramp2:#5598e7; --ramp3:#256abf; --ramp4:#184f95;
+    --tip-bg:#eef2f7; --tip-ink:#0e1116;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0e1116; --surface:#171b21; --ink:#eef2f7; --ink-2:#b4bdc8; --muted:#85909d;
+  --hair:#262c35; --axis:#343c47; --border:rgba(255,255,255,.10);
+  --accent:#86b6ef; --mark:#5598e7; --mark-dim:#4a5462; --tint:rgba(85,152,231,.14);
+  --ramp1:#9ec5f4; --ramp2:#5598e7; --ramp3:#256abf; --ramp4:#184f95;
+  --tip-bg:#eef2f7; --tip-ink:#0e1116;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.6 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1080px;margin:0 auto;padding:44px 24px 88px}
+.prose{max-width:72ch}
+h1,h2,h3{font-family:"IBM Plex Serif",Georgia,"Times New Roman",serif;font-weight:600;text-wrap:balance;margin:0}
+h1{font-size:34px;line-height:1.15;letter-spacing:-.01em}
+h2{font-size:22px;line-height:1.25;margin-top:56px}
+h3{font-size:16px;font-family:"IBM Plex Sans",system-ui,sans-serif;font-weight:600;margin-top:22px}
+p{margin:12px 0}
+a{color:var(--accent)}
+.eyebrow{font:500 12px/1 "IBM Plex Mono",ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.dek{font-size:18px;line-height:1.5;color:var(--ink-2);margin-top:14px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:18px;padding-top:14px;border-top:1px solid var(--hair);font:13px/1.5 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink-2)}
+.meta b{font-weight:500;color:var(--muted)}
+.mono,.num{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.small{font-size:13px;color:var(--ink-2)}
+ul{padding-left:20px;margin:10px 0}
+li{margin:6px 0}
+li b,p b{font-weight:600}
+
+figure{margin:22px 0 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px 20px 16px}
+figure.plain{background:transparent;border:0;padding:0}
+figcaption{font-size:13px;line-height:1.5;color:var(--ink-2);margin-top:12px}
+.fig-head{display:flex;justify-content:space-between;gap:16px;align-items:baseline;flex-wrap:wrap}
+.fig-title{font-weight:600;font-size:15px}
+.fig-sub{font-size:13px;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:10px 0 4px;font-size:13px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:2px}
+.legend i.line{height:0;border-top:2px solid;border-radius:0}
+.legend i.dash{height:0;border-top:2px dashed var(--ink-2);border-radius:0}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.panel{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 12px 8px}
+.panel h4{margin:0 0 2px;font-size:14px;font-weight:600}
+.panel .sub{font-size:12px;color:var(--muted);margin-bottom:6px}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:11px;fill:var(--ink-2);font-variant-numeric:tabular-nums}
+svg text.cat{font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:12px;fill:var(--ink)}
+svg text.val{fill:var(--ink);font-weight:500}
+svg text.end{fill:var(--ink-2);font-size:10.5px}
+svg .grid-l{stroke:var(--hair);stroke-width:1}
+svg .axis-l{stroke:var(--axis);stroke-width:1}
+svg .bar{fill:var(--mark-dim)}
+svg .bar.hi{fill:var(--mark)}
+svg .bar:hover,svg .bar:focus{filter:brightness(1.08);outline:0}
+svg .ln{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+svg .s0{stroke:var(--ramp1)} svg .s1{stroke:var(--ramp2)} svg .s2{stroke:var(--ramp3)} svg .s3{stroke:var(--ramp4)}
+svg .d0{fill:var(--ramp1)} svg .d1{fill:var(--ramp2)} svg .d2{fill:var(--ramp3)} svg .d3{fill:var(--ramp4)}
+svg .ring{stroke:var(--surface);stroke-width:2}
+svg .crlb{fill:none;stroke:var(--ink-2);stroke-width:1.5;stroke-dasharray:4 4}
+svg .xhair{stroke:var(--ink-2);stroke-width:1;opacity:0}
+svg .hit{fill:transparent;cursor:crosshair}
+.tip{position:absolute;pointer-events:none;background:var(--tip-bg);color:var(--tip-ink);border-radius:4px;padding:8px 10px;font:12px/1.45 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .08s;z-index:2;min-width:150px}
+.tip .t{opacity:.7;margin-bottom:4px}
+.tip .r{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.tip .r b{font-weight:500}
+.tip .k{display:inline-block;width:12px;border-top:2px solid;vertical-align:middle}
+.tip .k.dash{border-top-style:dashed}
+@media (prefers-reduced-motion: reduce){.tip{transition:none}}
+
+.tbl{overflow-x:auto;margin-top:16px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--hair);text-align:right;white-space:nowrap}
+th{font-weight:500;color:var(--muted);font-size:12px;letter-spacing:.02em}
+th.l,td.l{text-align:left}
+td.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+td.best{font-weight:600;color:var(--ink)}
+tr.hi td{background:var(--tint)}
+tr.hi td.l::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mark);margin-right:8px;vertical-align:1px}
+tr.sep td{border-top:2px solid var(--axis)}
+th.grp{text-align:center;border-bottom:1px solid var(--axis);color:var(--ink-2)}
+details{margin-top:10px}
+summary{cursor:pointer;font-size:13px;color:var(--accent);font-weight:500}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.callout{border-left:3px solid var(--mark);padding:2px 0 2px 16px;margin:18px 0;color:var(--ink-2)}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;font-size:13.5px;margin-top:10px}
+.kv .k{color:var(--muted)}
+footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--hair);font-size:13px;color:var(--muted)}
+footer code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px;color:var(--ink-2)}
+</style></head><body>
+
+<div class="page">
+<header>
+  <div class="eyebrow">MDPI Sensors · manuscript sensors-4536109 · major revision</div>
+  <h1 style="margin-top:12px">ReconUNet Revision Results</h1>
+  <p class="dek prose">Four learned front ends and six classical estimators evaluated on the corrected renderer, where multipath replicas are genuinely coherent with the direct path. Every model was retrained on the same 2 million scenes with the same schedule between 6 and 10 September 2026.</p>
+  <div class="meta">
+    <span><b>Array</b> ULA, N = 8, d = λ/2</span>
+    <span><b>Snapshots</b> T = 512</span>
+    <span><b>Train SNR</b> −10 to +20 dB</span>
+    <span><b>Metric</b> pooled RMSE, paper eq. 31, degrees</span>
+    <span><b>K</b> known to every method</span>
+  </div>
+</header>
+
+<section>
+  <h2>Headline</h2>
+  <p class="prose">On the 12,000-scene paper test split, ReconUNet with a Root-MUSIC back end has the lowest pooled RMSE of any method and wins every source-count bucket. DA-MUSIC, the baseline the reviewers asked for, lands second on the pooled metric despite the worst median. SubViT is the sharpest on the median and the worst on the tail, including against the classical estimators.</p>
+
+  <figure>
+    <div class="fig-head"><span class="fig-title">Pooled RMSE on the paper test set, all source counts</span><span class="fig-sub">12,000 scenes · K ∈ {1,2,3,4} · SNR −10 to +20 dB · mild imperfections · 81 % of scenes carry coherent replicas</span></div>
+    <div id="hero"></div>
+    <figcaption>Pooled RMSE = √(mean of all squared per-source errors), the paper's eq. 31. Lower is better. Classical estimators run on the raw sample covariance; ReconUNet runs Root-MUSIC on its reconstructed covariance.</figcaption>
+  </figure>
+
+  <ul class="prose" style="margin-top:18px">
+    <li><b>ReconUNet leads by 1.4× over the next learned method and 2.1× over classical Root-MUSIC</b> on the pooled metric, and is the only method whose error is flat across K on the scenario sweep.</li>
+    <li><b>Coherent multipath is now visibly the failure mode of classical subspace methods.</b> In the Moderate scenario Root-MUSIC sits at 5.9° from −5 dB upward regardless of SNR, the rank-collapse signature Section II-B predicts. ReconUNet brings it to 1.8°.</li>
+    <li><b>Two honest limits.</b> With one clean source and mild imperfections, classical Root-MUSIC edges every learned method above 0 dB. With one source plus six coherent replicas on eight elements, every learned method lands between 21° and 24° and none recovers.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>What changed in the data</h2>
+  <p class="prose">The July audit found that this repository's rewritten renderer produced replicas that were uncorrelated with the direct path (the submitted manuscript's results used the original generator and were never affected): sources were white at the sample rate, so a delay of one sample already produced an independent copy, and 80 % of delays saturated at a clip. The legacy generator band-limited every source to 10 % of Nyquist, giving a coherence time of about 20 samples. The renderer now does the same and applies the legacy fractional delays exactly through an FFT phase ramp. Rendering is lazy from the manifests, so no corpus was regenerated, but every observation changed and every checkpoint had to be retrained.</p>
+  <div class="tbl prose"><table>
+    <thead><tr><th class="l">Quantity, K = 1 plus two replicas at 40 dB</th><th>Before</th><th>After</th><th>Theory</th></tr></thead>
+    <tbody>
+      <tr><td class="l">Direct-to-replica correlation, mean</td><td class="num">0.04</td><td class="num best">0.89</td><td class="num">0.87</td></tr>
+      <tr><td class="l">Direct-to-replica correlation, minimum</td><td class="num">0.003</td><td class="num best">0.58</td><td class="num">0.64</td></tr>
+      <tr><td class="l">Second over first signal eigenvalue</td><td class="num">0.41</td><td class="num best">0.025</td><td class="num">→ 0</td></tr>
+      <tr><td class="l">Source autocorrelation at lags 1 to 7</td><td class="num">0.04</td><td class="num best">0.99 → 0.81</td><td class="num">sinc(0.05 ℓ)</td></tr>
+      <tr><td class="l">Identical replica pairs from delay clipping</td><td class="num">62 %</td><td class="num best">10 %</td><td class="num">—</td></tr>
+    </tbody></table></div>
+  <p class="small prose">A second consequence matters for the method itself: the non-zero lags of the autocorrelation stack now carry the signal subspace while white noise decorrelates, which is the premise of the multi-lag input. Before the fix they carried nothing but noise.</p>
+</section>
+
+<section>
+  <h2>Paper test set by source count</h2>
+  <p class="prose">Each cell gives the median per-sample RMSPE with the pooled RMSE in parentheses. The median describes the typical scene; the pooled figure is dominated by the coherent-multipath tail and is the paper's metric. Best pooled value per row in bold.</p>
+  <div class="tbl" id="ptable"></div>
+  <p class="small prose">The K = 1 bucket reads high for every method because single-source scenes in the corpus carry up to six replicas, which is the heaviest multipath load in the set.</p>
+</section>
+
+<section>
+  <h2>Scenarios at 0 dB</h2>
+  <p class="prose">The four Section IV scenarios, 1,000 scenes each at 0 dB. Scales differ per panel; read values from the labels. The Cramér-Rao bound for each scenario is in the panel subtitle.</p>
+  <figure class="plain">
+    <div class="legend"><span><i style="background:var(--mark)"></i>ReconUNet + Root-MUSIC</span><span><i style="background:var(--mark-dim)"></i>Other methods</span></div>
+    <div class="grid" id="scen0"></div>
+    <figcaption>Pooled RMSE in degrees. Classical Root-MUSIC operates on the raw sample covariance.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Robustness across SNR</h2>
+  <p class="prose">One panel per method, all on the same logarithmic scale, so a method's whole robustness profile is visible at once. The four scenarios are shaded from light to dark in order of difficulty. The dashed line is the stochastic Cramér-Rao bound for a single source. Hover or focus a panel for the values at each SNR.</p>
+  <figure class="plain">
+    <div class="legend" id="lineLegend"></div>
+    <div class="grid" id="lines"></div>
+    <figcaption>Pooled RMSE in degrees versus SNR in dB, 1,000 scenes per point. Every learned method was trained on −10 to +20 dB; the −20 and −15 dB columns are outside the training range for all of them. End labels give the value at +20 dB.</figcaption>
+  </figure>
+  <details><summary>Show the numbers behind the curves</summary><div class="tbl" id="linesTable"></div></details>
+</section>
+
+<section>
+  <h2>Table II under mild and harsh imperfections</h2>
+  <p class="prose">The paper's Table II at 0 dB, reproduced on the corrected renderer for both imperfection presets. Mild is 0.1 dB gain, 1° phase, 0.02 coupling, 1 % position error; harsh is five times each. Best value per column in bold, bounds excluded.</p>
+  <div class="tbl" id="t2"></div>
+  <div class="callout prose"><p style="margin:6px 0">For reference, the submitted manuscript reported ReconUNet + ESPRIT against raw ESPRIT at 0 dB as 2.08° vs 6.83° in the 3 + 1 scenario, 6.89° vs 12.03° in the 4 + 3 scenario, and 20.89° vs 35.22° out of distribution. Those numbers came from the original signal generator used for the submission, which band-limited its sources and therefore already produced coherent replicas; the incoherent-replica bug described above was confined to this repository's rewritten renderer and touched none of the manuscript's results. They were produced with imperfection magnitudes the manuscript never states, so they are not directly comparable to the rows above. The direction and rough ratio of every aided-versus-raw pair are reproduced here.</p></div>
+</section>
+
+<section>
+  <h2>Training runs</h2>
+  <p class="prose">All runs used the paper schedule: Adam at 1e-4, weight decay 1e-5, batch 2048, up to 300 epochs, ReduceLROnPlateau 0.7/5, early stopping with patience 25, gradient clipping at 1.0. DA-MUSIC has a fixed-width head, so following its published protocol one instance was trained per source count on that count's 500k-scene subset.</p>
+  <div class="tbl" id="train"></div>
+  <p class="small prose">Checkpoints were selected on validation loss. For ReconUNet and SubViT the validation RMSPE was still creeping down when the composite loss plateaued, and the three DA-MUSIC instances for K ≥ 2 reached the 300-epoch budget with their best epoch at the end. Both facts belong in the protocol paragraph.</p>
+</section>
+
+<section>
+  <h2>Notes for the manuscript</h2>
+  <ul class="prose">
+    <li><b>Claim to make.</b> ReconUNet is the only front end that is strong in every regime: best pooled RMSE on the test split and in Moderate and Crowded, never catastrophic, flat across K. Do not claim it wins everywhere.</li>
+    <li><b>Basic scenario.</b> With a single clean source and mild imperfections, raw Root-MUSIC at 0.25° beats aided Root-MUSIC at 0.37°. Every learned method has an error floor near 0.3 to 0.6° above 0 dB, set by the imperfection prior it learned. Say so; it answers Reviewer 2's identifiability point directly.</li>
+    <li><b>Out-of-distribution scenario.</b> Seven coherent arrivals on eight elements is a degrees-of-freedom limit. Classical breaks to 41°; all four learned methods sit between 21° and 24° with SubspaceNet marginally ahead of ReconUNet. Report it as a regime where no method recovers, and fold the high-SNR plateau into Limitations.</li>
+    <li><b>SubViT.</b> The full-capacity 42.6 M ViT has the best median on the test split and the worst tail of any method, and it collapses under harsh imperfections in Moderate. It overfits the imperfection statistics of the training corpus. This is a publishable observation, not a footnote.</li>
+    <li><b>DA-MUSIC protocol.</b> One model per K, K known, batched forward with a Hermitian PSD surrogate and the same robust eigendecomposition SubspaceNet uses. State each deviation from the vendored code; they are listed in the adapter's docstring.</li>
+    <li><b>Section II-B and the multipath text.</b> The data now match the rank-1 derivation, so Section II-B stands. Replace the informal lag-structure argument with the measured autocorrelation profile and the correlation-versus-delay relation, which answers Reviewer 1's request for analysis.</li>
+    <li><b>Moderate scenario definition.</b> The corpus here is 2 direct plus 1 replica as Section IV states; the submitted Table II caption said 3 + 1. Pick one and make the text agree.</li>
+    <li><b>Loss weights.</b> All four composite-loss weights are 1.0 in the configuration that trained the model behind every number on this page.</li>
+  </ul>
+</section>
+
+<footer>
+  Data behind this page: <code>experiments/runs/eval_coherent_20260910/</code> (paper_testset, scenario_sweep, table2_mild, table2_harsh). Checkpoints: <code>experiments/runs/{reconunet,subspacenet,subvit}_paper/</code> and <code>experiments/runs/damusic_paper/k1..k4/</code>. Training logs: <code>experiments/runs/revision_retrain_20260906/</code>. Renderer change: <code>docs/PAPER_FAITHFUL_DATASET.md</code>, bug-fix log entry dated 2026-09-06. The CSVs and this page are tracked in git under that directory; the checkpoints are distributed separately (GitHub Release for the small models, Zenodo for SubViT — see the repository README).
+</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+// ---------------------------------------------------------------- data
+const METHODS = ["Root-MUSIC","ESPRIT","SubspaceNet","SubViT","DA-MUSIC","ReconUNet"];
+const PT = { // paper test split: [median, pooled] per method, rows K=1..4, all
+  rows:[
+    {K:"1",n:3000, v:{"Root-MUSIC":[1.14,26.37],"ESPRIT":[4.94,23.45],"SubspaceNet":[1.42,13.62],"SubViT":[0.53,13.87],"DA-MUSIC":[4.09,16.25],"ReconUNet":[0.75,12.49]}},
+    {K:"2",n:3000, v:{"Root-MUSIC":[0.79,14.21],"ESPRIT":[2.60,12.49],"SubspaceNet":[1.44,8.17],"SubViT":[0.53,15.24],"DA-MUSIC":[3.02,8.39],"ReconUNet":[0.84,6.04]}},
+    {K:"3",n:3000, v:{"Root-MUSIC":[0.77,9.71],"ESPRIT":[1.82,8.79],"SubspaceNet":[1.74,7.57],"SubViT":[0.59,15.92],"DA-MUSIC":[3.29,6.60],"ReconUNet":[0.98,3.73]}},
+    {K:"4",n:3000, v:{"Root-MUSIC":[0.67,6.41],"ESPRIT":[1.15,5.41],"SubspaceNet":[2.06,7.24],"SubViT":[0.67,14.31],"DA-MUSIC":[3.25,5.26],"ReconUNet":[1.12,4.00]}},
+    {K:"all",n:12000,v:{"Root-MUSIC":[0.80,12.43],"ESPRIT":[2.15,11.00],"SubspaceNet":[1.70,8.37],"SubViT":[0.58,14.95],"DA-MUSIC":[3.31,8.04],"ReconUNet":[0.94,5.79]}}
+  ]};
+const SNR = [-20,-15,-10,-5,0,5,10,15,20];
+const SCEN = [ // ordered by difficulty (ramp light -> dark)
+  {id:"basic",   name:"Basic",    sub:"K = 1, no multipath",          crlb0:0.12, crlb:[4.148,1.413,0.535,0.237,0.120,0.0647,0.0359,0.0201,0.0113],
+   s:{"Root-MUSIC":[40.12,4.76,0.580,0.317,0.251,0.234,0.230,0.229,0.229],"SubspaceNet":[40.77,15.10,0.941,0.554,0.540,0.554,0.567,0.572,0.574],"SubViT":[36.12,11.71,0.666,0.439,0.380,0.381,0.374,0.373,0.376],"DA-MUSIC":[36.59,30.12,8.31,2.78,2.13,2.03,2.01,2.00,2.00],"ReconUNet":[44.48,4.39,0.678,0.449,0.373,0.350,0.344,0.343,0.343]}},
+  {id:"moderate",name:"Moderate", sub:"2 direct + 1 coherent replica", crlb0:0.14, crlb:[4.894,1.660,0.623,0.273,0.137,0.0735,0.0408,0.0228,0.0128],
+   s:{"Root-MUSIC":[31.69,12.87,6.60,5.88,5.91,5.91,6.00,6.00,6.00],"SubspaceNet":[32.03,15.87,4.89,2.97,2.92,3.22,3.22,3.76,3.22],"SubViT":[34.89,34.78,21.26,11.50,8.72,7.26,6.42,6.13,5.71],"DA-MUSIC":[28.98,20.80,6.08,4.04,3.71,3.66,3.65,3.64,3.63],"ReconUNet":[31.95,5.24,1.87,1.81,1.79,1.78,1.78,1.78,1.78]}},
+  {id:"crowded", name:"Crowded",  sub:"4 direct + 3 coherent replicas",crlb0:0.21, crlb:[8.352,2.798,1.023,0.432,0.210,0.112,0.0617,0.0345,0.0193],
+   s:{"Root-MUSIC":[21.02,14.66,9.89,9.01,8.87,8.93,8.81,8.81,8.81],"SubspaceNet":[21.73,13.55,9.17,8.14,7.91,7.91,7.90,7.96,7.91],"SubViT":[30.32,32.97,22.36,17.58,16.32,16.34,16.19,16.06,16.22],"DA-MUSIC":[20.54,12.21,7.52,6.91,6.82,6.81,6.80,6.80,6.80],"ReconUNet":[18.43,7.92,5.38,4.87,4.80,4.77,4.77,4.79,4.79]}},
+  {id:"ood",     name:"OOD",      sub:"1 direct + 6 coherent replicas",crlb0:0.12, crlb:[4.160,1.417,0.537,0.238,0.120,0.0649,0.0360,0.0202,0.0113],
+   s:{"Root-MUSIC":[47.51,41.61,41.19,41.17,40.95,41.11,40.88,41.03,41.02],"SubspaceNet":[38.98,28.09,20.92,21.64,21.49,21.69,21.97,21.97,21.88],"SubViT":[37.25,34.06,26.04,24.16,23.60,23.81,23.90,24.04,24.09],"DA-MUSIC":[36.35,33.56,25.44,24.17,24.28,24.27,24.29,24.30,24.30],"ReconUNet":[49.00,28.87,22.32,22.64,23.04,22.85,22.87,22.82,22.93]}}
+];
+const LINE_METHODS = ["Root-MUSIC","SubspaceNet","SubViT","DA-MUSIC","ReconUNet"];
+const T2 = { cols:["Basic","Moderate","OOD","Crowded"], rows:[
+  ["Bartlett",                 [3.96,12.92,28.72,21.00],[6.14,14.50,30.22,21.83]],
+  ["MVDR",                     [3.56,11.53,25.06,15.72],[5.91,12.27,27.97,18.25]],
+  ["MUSIC",                    [3.97,10.39,29.93,12.56],[5.73,11.70,30.67,15.56]],
+  ["Root-MUSIC",               [0.25,5.91,40.95,8.87],  [1.15,6.83,41.96,9.34]],
+  ["ESPRIT",                   [0.33,5.94,35.72,8.14],  [1.58,6.20,38.63,8.39]],
+  ["Unitary-ESPRIT",           [0.41,5.69,24.30,8.04],  [3.65,6.76,25.55,9.07]],
+  ["ReconUNet + Root-MUSIC",   [0.37,1.79,22.89,4.80],  [1.20,2.36,25.31,6.14]],
+  ["ReconUNet + MUSIC",        [0.42,4.03,22.89,8.16],  [1.21,5.40,25.30,9.15]],
+  ["ReconUNet + ESPRIT",       [0.40,1.78,24.20,4.61],  [1.21,2.19,26.99,5.41]],
+  ["ReconUNet + Unitary-ESPRIT",[0.41,2.63,21.33,4.00], [1.22,3.02,23.79,4.93]],
+  ["SubspaceNet",              [0.54,2.92,21.49,7.91],  [1.28,4.73,23.24,8.82]],
+  ["SubViT",                   [0.38,8.72,23.60,16.32], [1.22,14.85,26.10,18.42]],
+  ["DA-MUSIC",                 [2.13,3.71,24.28,6.82],  [2.74,4.63,25.52,7.60]],
+  ["CRLB",                     [0.12,0.14,0.12,0.21],   [0.12,0.14,0.12,0.21]]
+]};
+const TRAIN = [
+  ["ReconUNet","336,003","109 (84)","2.17","1.15","4.8 h",true],
+  ["SubspaceNet","41,761","83 (58)","3.99","2.40","30.3 h",false],
+  ["SubViT, D = 768","42,642,553","161 (136)","6.44","2.80","43.9 h",false],
+  ["DA-MUSIC, K = 1","10,913","207 (182)","8.21","—","2.6 h",false],
+  ["DA-MUSIC, K = 2","10,930","300 (296)","5.12","—","3.8 h",false],
+  ["DA-MUSIC, K = 3","10,947","300 (298)","4.57","—","3.8 h",false],
+  ["DA-MUSIC, K = 4","10,964","300 (300)","4.13","—","3.8 h",false]
+];
+
+// ---------------------------------------------------------------- helpers
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent){ const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function txt(parent, x, y, s, cls, anchor){ const t = el("text", {x, y, "text-anchor": anchor || "start", "dominant-baseline":"middle"}, parent); if (cls) t.setAttribute("class", cls); t.textContent = s; return t; }
+function h(tag, cls, parent, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; if (parent) parent.appendChild(e); return e; }
+function fmt(v){ return v >= 10 ? v.toFixed(1) : v.toFixed(2); }
+function niceMax(v){ const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; const n = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10; return n * p; }
+
+// ---------------------------------------------------------------- horizontal bar chart
+function hbars(container, items, opts){
+  // items: [{label, value, hi}] ; opts: {w, xlabel}
+  const w = opts.w || 720, rowH = 30, barH = 22, left = opts.left || 130, right = 64, top = 8, bottom = 30;
+  const H = top + items.length * rowH + bottom;
+  const svg = el("svg", {viewBox: `0 0 ${w} ${H}`, role:"img", "aria-label": opts.aria || ""}, container);
+  const max = niceMax(Math.max(...items.map(d => d.value)) * 1.05);
+  const pw = w - left - right;
+  const x = v => left + v / max * pw;
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++){ const v = max * i / ticks; el("line", {x1:x(v), x2:x(v), y1:top, y2:top + items.length*rowH, class: i ? "grid-l" : "axis-l"}, svg); txt(svg, x(v), H - 12, (v % 1 ? v.toFixed(1) : v.toFixed(0)), null, "middle"); }
+  txt(svg, left + pw, H - 12, "", null, "end");
+  items.forEach((d, i) => {
+    const y = top + i * rowH + (rowH - barH) / 2;
+    const r = el("rect", {x:left, y, width: Math.max(0, x(d.value) - left), height: barH, class: "bar" + (d.hi ? " hi" : ""), rx:0, tabindex:0}, svg);
+    // rounded data end only: overlay a small rect to square the baseline side
+    r.setAttribute("rx", "4"); el("rect", {x:left, y, width: Math.min(4, Math.max(0, x(d.value)-left)), height: barH, class: "bar" + (d.hi ? " hi" : "")}, svg);
+    txt(svg, left - 10, y + barH/2, d.label, "cat", "end");
+    txt(svg, x(d.value) + 8, y + barH/2, fmt(d.value) + "°", "val", "start");
+    r.appendChild(document.createElementNS(NS, "title")).textContent = `${d.label}: ${fmt(d.value)}°`;
+  });
+  if (opts.xlabel) txt(svg, left, H - 12, opts.xlabel, null, "start").setAttribute("x", left - 130 + 4);
+  return svg;
+}
+
+// hero
+(function(){
+  const all = PT.rows[4].v;
+  const items = METHODS.map(m => ({label: m === "ReconUNet" ? "ReconUNet + Root-MUSIC" : m, value: all[m][1], hi: m === "ReconUNet"})).sort((a,b) => a.value - b.value);
+  hbars(document.getElementById("hero"), items, {w: 760, left: 170, aria: "Pooled RMSE per method on the paper test set"});
+})();
+
+// paper test table
+(function(){
+  const wrap = document.getElementById("ptable");
+  const t = h("table", null, wrap), th = h("thead", null, t), tr = h("tr", null, th);
+  h("th", "l", tr, "K"); h("th", null, tr, "scenes"); METHODS.forEach(m => h("th", null, tr, m === "ReconUNet" ? "ReconUNet + R-MUSIC" : m));
+  const tb = h("tbody", null, t);
+  PT.rows.forEach((row, i) => {
+    const r = h("tr", i === 4 ? "sep" : null, tb);
+    h("td", "l", r, row.K); h("td", "num", r, row.n.toLocaleString("en-US"));
+    const best = Math.min(...METHODS.map(m => row.v[m][1]));
+    METHODS.forEach(m => { const [md, po] = row.v[m]; const c = h("td", "num" + (po === best ? " best" : ""), r); c.textContent = `${fmt(md)} (${fmt(po)})`; });
+  });
+})();
+
+// scenarios at 0 dB
+(function(){
+  const grid = document.getElementById("scen0");
+  SCEN.forEach(sc => {
+    const p = h("div", "panel", grid);
+    h("h4", null, p, sc.name);
+    h("div", "sub", p, `${sc.sub} · CRLB ${sc.crlb0.toFixed(2)}°`);
+    const items = LINE_METHODS.map(m => ({label: m === "ReconUNet" ? "ReconUNet + R-MUSIC" : m, value: sc.s[m][4], hi: m === "ReconUNet"})).sort((a,b) => a.value - b.value);
+    hbars(p, items, {w: 360, left: 132, aria: `${sc.name} scenario pooled RMSE at 0 dB`});
+  });
+})();
+
+// robustness lines, small multiples by method
+(function(){
+  const legend = document.getElementById("lineLegend");
+  SCEN.forEach((sc, i) => { const s = h("span", null, legend); const k = h("i", "line", s); k.style.borderTopColor = `var(--ramp${i+1})`; s.appendChild(document.createTextNode(`${sc.name} · ${sc.sub}`)); });
+  const s2 = h("span", null, legend); h("i", "dash", s2); s2.appendChild(document.createTextNode("CRLB, single source"));
+
+  const grid = document.getElementById("lines");
+  const W = 360, Hh = 250, L = 44, R = 58, T = 14, B = 30;
+  const pw = W - L - R, ph = Hh - T - B;
+  const yMin = 0.01, yMax = 60;
+  const ly = v => T + (Math.log10(yMax) - Math.log10(Math.max(v, yMin))) / (Math.log10(yMax) - Math.log10(yMin)) * ph;
+  const lx = i => L + i / (SNR.length - 1) * pw;
+  LINE_METHODS.forEach(m => {
+    const p = h("div", "panel", grid);
+    h("h4", null, p, m === "ReconUNet" ? "ReconUNet + Root-MUSIC" : m);
+    h("div", "sub", p, m === "Root-MUSIC" ? "classical, raw sample covariance" : m === "DA-MUSIC" ? "one model per K" : "single model, all K");
+    const svg = el("svg", {viewBox:`0 0 ${W} ${Hh}`, role:"img", "aria-label": `${m}: pooled RMSE versus SNR for four scenarios`}, p);
+    [0.01, 0.1, 1, 10].forEach(v => { el("line", {x1:L, x2:L+pw, y1:ly(v), y2:ly(v), class:"grid-l"}, svg); txt(svg, L - 8, ly(v), v < 1 ? String(v) : v.toFixed(0), null, "end"); });
+    el("line", {x1:L, x2:L+pw, y1:T+ph, y2:T+ph, class:"axis-l"}, svg);
+    SNR.forEach((s, i) => { if (s % 10 === 0) txt(svg, lx(i), T + ph + 14, (s > 0 ? "+" : "") + s, null, "middle"); });
+    txt(svg, L + pw, T + ph + 26, "SNR, dB", null, "end").setAttribute("class", "end");
+    txt(svg, L - 8, T - 2, "deg", "end", "end");
+    // CRLB (Basic, K=1)
+    const cr = SCEN[0].crlb; el("path", {d: cr.map((v, i) => (i ? "L" : "M") + lx(i).toFixed(1) + " " + ly(v).toFixed(1)).join(" "), class:"crlb"}, svg);
+    // scenario lines
+    const ends = [];
+    SCEN.forEach((sc, si) => {
+      const ys = sc.s[m];
+      el("path", {d: ys.map((v, i) => (i ? "L" : "M") + lx(i).toFixed(1) + " " + ly(v).toFixed(1)).join(" "), class:"ln s" + si}, svg);
+      const last = ys[ys.length - 1];
+      el("circle", {cx: lx(8), cy: ly(last), r: 4, class: "d" + si + " ring"}, svg);
+      ends.push({y: ly(last), v: last});
+    });
+    // end labels with collision nudge (leader-free: only nudge if < 11px apart)
+    ends.sort((a,b) => a.y - b.y);
+    for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i-1].y < 11) ends[i].y = ends[i-1].y + 11;
+    ends.forEach(e => txt(svg, lx(8) + 9, e.y, fmt(e.v), "end", "start"));
+    // hover layer
+    const xh = el("line", {x1:0, x2:0, y1:T, y2:T+ph, class:"xhair"}, svg);
+    const hit = el("rect", {x:L, y:T, width:pw, height:ph, class:"hit", tabindex:0}, svg);
+    const tip = h("div", "tip", p);
+    function show(i){
+      xh.setAttribute("x1", lx(i)); xh.setAttribute("x2", lx(i)); xh.style.opacity = 1;
+      tip.textContent = "";
+      h("div", "t", tip, `${SNR[i] > 0 ? "+" : ""}${SNR[i]} dB`);
+      SCEN.forEach((sc, si) => { const r = h("div", "r", tip); const k = h("span", "k", r); k.style.borderTopColor = `var(--ramp${si+1})`; const lab = h("span", null, r, sc.name); lab.style.flex = "1"; lab.style.margin = "0 6px"; h("b", null, r, fmt(sc.s[m][i]) + "°"); });
+      const r = h("div", "r", tip); h("span", "k dash", r); const lab = h("span", null, r, "CRLB"); lab.style.flex = "1"; lab.style.margin = "0 6px"; h("b", null, r, SCEN[0].crlb[i].toFixed(3) + "°");
+      tip.style.opacity = 1;
+      const rect = svg.getBoundingClientRect(); const px = lx(i) / W * rect.width;
+      tip.style.left = Math.min(Math.max(px + 12, 8), rect.width - 170) + "px"; tip.style.top = "40px";
+    }
+    function hide(){ xh.style.opacity = 0; tip.style.opacity = 0; }
+    hit.addEventListener("pointermove", ev => { const rect = svg.getBoundingClientRect(); const xv = (ev.clientX - rect.left) / rect.width * W; const i = Math.round((xv - L) / pw * (SNR.length - 1)); show(Math.min(Math.max(i, 0), SNR.length - 1)); });
+    hit.addEventListener("pointerleave", hide);
+    let fi = 4; hit.addEventListener("focus", () => show(fi)); hit.addEventListener("blur", hide);
+    hit.addEventListener("keydown", ev => { if (ev.key === "ArrowRight") { fi = Math.min(fi + 1, SNR.length - 1); show(fi); ev.preventDefault(); } else if (ev.key === "ArrowLeft") { fi = Math.max(fi - 1, 0); show(fi); ev.preventDefault(); } });
+  });
+
+  // table view
+  const wrap = document.getElementById("linesTable");
+  const t = h("table", null, wrap), th = h("thead", null, t), tr = h("tr", null, th);
+  h("th", "l", tr, "scenario"); h("th", "l", tr, "method"); SNR.forEach(s => h("th", null, tr, (s > 0 ? "+" : "") + s + " dB"));
+  const tb = h("tbody", null, t);
+  SCEN.forEach(sc => {
+    LINE_METHODS.concat(["CRLB"]).forEach((m, mi) => {
+      const r = h("tr", (m === "ReconUNet" ? "hi" : "") + (mi === 0 ? " sep" : ""), tb);
+      h("td", "l", r, mi === 0 ? sc.name : ""); h("td", "l", r, m);
+      const ys = m === "CRLB" ? sc.crlb : sc.s[m];
+      ys.forEach(v => h("td", "num", r, m === "CRLB" ? v.toFixed(3) : fmt(v)));
+    });
+  });
+})();
+
+// Table II
+(function(){
+  const wrap = document.getElementById("t2");
+  const t = h("table", null, wrap), th = h("thead", null, t);
+  const tr0 = h("tr", null, th); h("th", "l", tr0, ""); const g1 = h("th", "grp", tr0, "Mild imperfections"); g1.colSpan = 4; const g2 = h("th", "grp", tr0, "Harsh imperfections"); g2.colSpan = 4;
+  const tr = h("tr", null, th); h("th", "l", tr, "method, pooled RMSE at 0 dB"); T2.cols.forEach(c => h("th", null, tr, c)); T2.cols.forEach(c => h("th", null, tr, c));
+  const tb = h("tbody", null, t);
+  const best = [0,1].map(p => T2.cols.map((_, j) => Math.min(...T2.rows.filter(r => r[0] !== "CRLB").map(r => r[1 + p][j]))));
+  T2.rows.forEach((row, i) => {
+    const isRN = row[0].startsWith("ReconUNet");
+    const r = h("tr", (isRN ? "hi" : "") + ((i === 6 || i === 10 || i === 13) ? " sep" : ""), tb);
+    h("td", "l", r, row[0]);
+    [0,1].forEach(p => row[1 + p].forEach((v, j) => { const c = h("td", "num" + (row[0] !== "CRLB" && v === best[p][j] ? " best" : ""), r); c.textContent = fmt(v); }));
+  });
+})();
+
+// training table
+(function(){
+  const wrap = document.getElementById("train");
+  const t = h("table", null, wrap), th = h("thead", null, t), tr = h("tr", null, th);
+  ["Model","Parameters","Epochs (best)","Val RMSPE, coherent renderer","Val RMSPE, old renderer","Wall-clock"].forEach((c, i) => h("th", i === 0 ? "l" : null, tr, c));
+  const tb = h("tbody", null, t);
+  TRAIN.forEach(row => { const r = h("tr", row[6] ? "hi" : null, tb); row.slice(0, 6).forEach((v, i) => h("td", i === 0 ? "l" : "num", r, v)); });
+})();
+})();
+</script>
+</body></html>
