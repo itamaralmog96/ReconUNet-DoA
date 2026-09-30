@@ -589,6 +589,12 @@ class SceneRenderer:
             # White sources: keep the legacy delay *range* (as if bw = 0.05·fs)
             # so the delay statistics do not depend on the filtering switch.
             bw_frac = _LEGACY_BW_FRACTION_OF_FS
+        delay_bw = getattr(self.meta, "mp_delay_bw_frac", None)
+        if delay_bw is not None:
+            # Bandwidth sweep: decouple the delay range from the source spectrum.
+            # The rng draws are unchanged, so every delay equals the one drawn
+            # at ``mp_delay_bw_frac``.
+            bw_frac = float(delay_bw)
         max_delay_seconds = 1.0 / (fs * bw_frac)                   # legacy line 249
 
         # 1) Sample multipath parameters (legacy formulas)

@@ -24,7 +24,8 @@ import numpy as np
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _revision_common import REPO, chunks, root_music_rad, scm  # noqa: E402
+from _revision_common import REPO, chunks, load_reconunet, root_music_rad, scm  # noqa: E402
+from reconunet.data.scene_renderer import lag_stack  # noqa: E402
 
 from reconunet.data.scene_dataset import SceneDataset  # noqa: E402
 from reconunet.data.scene_manifest import SceneManifest  # noqa: E402
@@ -52,8 +53,14 @@ def main() -> int:
     ap.add_argument("--snrs", type=float, nargs="*", default=[20.0, 0.0])
     ap.add_argument("--max-scenes", type=int, default=None)
     ap.add_argument("--output-dir", "-o", type=Path, default=REPO / "experiments/runs/sweeps_20260920")
+    ap.add_argument("--reconunet-c", type=Path, default=None,
+                    help="optional ReconUNet-C checkpoint: also report MUSIC-grid/refined and Root-MUSIC on its R_hat")
     a = ap.parse_args()
     a.output_dir.mkdir(parents=True, exist_ok=True)
+    rc = None
+    if a.reconunet_c is not None:
+        dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        rc = load_reconunet(a.reconunet_c, dev)[1]
     man = SceneManifest.load(str(REPO / "data/scenes/scenarios/basic/test.npy")); ds = SceneDataset(man)
     M = int(man.meta.M); K = 1
     grid = CB._default_grid(torch.device("cpu"))                                  # 1 deg on [-60, 60]
@@ -62,6 +69,8 @@ def main() -> int:
         idx = np.where(np.abs(man.raw["snr_db"] - snr) < 1.0)[0]
         if a.max_scenes: idx = idx[: a.max_scenes]
         errs = {"MUSIC-grid": [], "MUSIC-refined": [], "Root-MUSIC": []}
+        if rc is not None:
+            errs.update({"ReconUNet-C+MUSIC-grid": [], "ReconUNet-C+MUSIC-refined": [], "ReconUNet-C+Root-MUSIC": []})
         for ch in chunks(idx.tolist(), 500):
             samples = [ds[int(i)] for i in ch]
             X = torch.stack([s.snapshots for s in samples], 0); true = np.stack([s.angles_rad.numpy()[:K] for s in samples])
@@ -72,6 +81,13 @@ def main() -> int:
             errs["MUSIC-grid"].append(np.rad2deg(grid_est - true).ravel())
             errs["MUSIC-refined"].append(np.rad2deg(refined - true).ravel())
             errs["Root-MUSIC"].append(np.rad2deg(root_music_rad(R, K) - true).ravel())
+            if rc is not None:
+                with torch.no_grad():
+                    Rc = rc(lag_stack(X, tau=8).to(next(rc.parameters()).device))[2].detach().cpu()
+                spec_c = music_spectrum(Rc, K, M, grid)
+                errs["ReconUNet-C+MUSIC-grid"].append(np.rad2deg(grid[spec_c.argmax(dim=1)].numpy()[:, None] - true).ravel())
+                errs["ReconUNet-C+MUSIC-refined"].append(np.rad2deg(CB.music(Rc, K, M).numpy()[:, :K] - true).ravel())
+                errs["ReconUNet-C+Root-MUSIC"].append(np.rad2deg(root_music_rad(Rc, K) - true).ravel())
         for m, e in errs.items():
             rows.append({"snr_db": snr, "method": m, **stats(np.concatenate(e))})
     out = a.output_dir / "music_verification.csv"

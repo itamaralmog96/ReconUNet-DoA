@@ -23,6 +23,8 @@ import argparse
 import csv
 from pathlib import Path
 
+import sys
+
 import numpy as np
 import torch
 
@@ -36,6 +38,8 @@ from reconunet.models.third_party.damusic_adapter import DAMUSICEnsemble
 from reconunet.evaluation.unified_harness import stochastic_crlb_deg
 
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _revision_common import load_reconunet  # noqa: E402
 SCENARIOS = [
     ("basic",             "Basic (K=1, no multipath)"),
     ("moderate",          "Moderate (K=2, +1 coherent)"),
@@ -45,7 +49,7 @@ SCENARIOS = [
 # "DA-MUSIC" is dropped at runtime when no per-K checkpoints exist yet.
 METHODS = ["Root-MUSIC", "SubspaceNet", "SubViT", "DA-MUSIC", "ReconUNet"]
 COLORS = {"Root-MUSIC": "#888888", "SubspaceNet": "#1f77b4",
-          "SubViT": "#2ca02c", "DA-MUSIC": "#9467bd", "ReconUNet": "#d62728"}
+          "SubViT": "#2ca02c", "DA-MUSIC": "#9467bd", "ReconUNet": "#d62728", "ReconUNet-C": "#ff7f0e"}
 
 
 def _sq_err_deg2(pred_rad, true_rad):
@@ -67,6 +71,8 @@ def main() -> int:
     ap.add_argument("--subspacenet", type=Path, default=REPO / "experiments/runs/subspacenet_paper/checkpoints/best.pt")
     ap.add_argument("--subvit", type=Path, default=REPO / "experiments/runs/subvit_paper/checkpoints/best.pt")
     ap.add_argument("--reconunet", type=Path, default=REPO / "experiments/runs/reconunet_paper/checkpoints/best.pt")
+    ap.add_argument("--reconunet-c", type=Path, default=None,
+                    help="optional covariance-only ReconUNet-C checkpoint, evaluated as the extra method 'ReconUNet-C'")
     ap.add_argument("--damusic-dir", type=Path, default=REPO / "experiments/runs/damusic_paper",
                     help="root holding k<K>/checkpoints/best.pt per source count")
     ap.add_argument("--output-dir", "-o", type=Path, default=REPO / "experiments/runs/scenario_sweep")
@@ -87,10 +93,11 @@ def main() -> int:
                               weights_only=False)["cfg"]["model"]["init"])
     sv_ad = SubViTAdapter(**sv_init)
     sv = sv_ad.build_model(sv_init); sv_ad.load_checkpoint(sv, str(args.subvit)); sv.to(dev).eval()
-    from reconunet.cli.evaluate import _NativeEVDUNetAdapter
-    rn_ad = _NativeEVDUNetAdapter("reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet")
-    rn = rn_ad.build_model({"M": 8, "tau": args.tau, "activation_type": "anti_rectifier", "use_dropout": True})
-    rn_ad.load_checkpoint(rn, str(args.reconunet)); rn.to(dev).eval()
+    # Model class + init from the checkpoint's saved config (full ReconUNet by default).
+    rn_ad, rn, _ = load_reconunet(args.reconunet, dev, tau=args.tau)
+    rc = load_reconunet(args.reconunet_c, dev, tau=args.tau) if args.reconunet_c else None
+    if rc is not None:
+        METHODS.append("ReconUNet-C")
     dm = DAMUSICEnsemble.from_run_dir(args.damusic_dir, device=dev)     # per-K models or None
     if dm is None:
         METHODS[:] = [m for m in METHODS if m != "DA-MUSIC"]
@@ -119,6 +126,9 @@ def main() -> int:
                     sv_in = sv_ad.prepare_input(snaps, {"M": M}).to(dev)
                     sv_p = sv_ad.forward(sv, sv_in, meta={"n_sources": nsrc}).angles_pred.cpu().numpy()[:, :K]
                     preds = [("Root-MUSIC", rm), ("SubspaceNet", sn_p), ("SubViT", sv_p), ("ReconUNet", rn_p)]
+                    if rc is not None:
+                        preds.append(("ReconUNet-C", rc[0].forward(rc[1], lag, meta={"tau": args.tau, "n_sources": nsrc})
+                                      .angles_pred.cpu().numpy()[:, :K]))
                     if dm is not None:
                         preds.append(("DA-MUSIC", dm.predict(snaps.to(dev), nsrc).cpu().numpy()[:, :K]))
                 for m, pr in preds:

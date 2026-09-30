@@ -194,6 +194,13 @@ class ManifestMeta:
     # identical to the randomised rendering of the same scene.  ``None`` =
     # paper behaviour (randomised per scene).
     fixed_imperfection_seed: Optional[int] = None
+    # Sweep knob (source-bandwidth sweep, R2): when set, the multipath replica
+    # delay range is computed from this bandwidth fraction instead of
+    # ``source_bw_frac`` (renderer: max_delay = 1/(fs·bw)), so the source
+    # spectrum can be varied while every replica delay stays exactly as drawn
+    # at this bandwidth.  ``None`` = paper behaviour (delays follow
+    # ``source_bw_frac``; white sources use the legacy 0.05).
+    mp_delay_bw_frac: Optional[float] = None
 
     # --- sampling strategy ----------------------------------------------
     K_max: int = K_MAX
@@ -219,6 +226,7 @@ class ManifestMeta:
             "tau": self.tau,
             "source_bw_frac": self.source_bw_frac,
             "fixed_imperfection_seed": self.fixed_imperfection_seed,
+            **({"mp_delay_bw_frac": self.mp_delay_bw_frac} if self.mp_delay_bw_frac is not None else {}),
             "K_max": self.K_max,
             "angle_range_deg": list(self.angle_range_deg),
             "snr_range_db": list(self.snr_range_db),

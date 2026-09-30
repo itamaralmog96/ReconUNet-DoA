@@ -45,10 +45,11 @@ def main() -> int:
     ap.add_argument("--max-scenes", type=int, default=None)
     ap.add_argument("--batch", type=int, default=500)
     ap.add_argument("--output-dir", "-o", type=Path, default=REPO / "experiments/runs/sweeps_20260920")
+    ap.add_argument("--reconunet-c", type=Path, default=None, help="optional ReconUNet-C checkpoint (extra method)")
     a = ap.parse_args()
     a.output_dir.mkdir(parents=True, exist_ok=True)
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    mdl = Models(dev, with_damusic=False)
+    mdl = Models(dev, with_damusic=False, reconunet_c=a.reconunet_c)
 
     man = SceneManifest.load(str(REPO / f"data/scenes/scenarios/{a.scenario}/test.npy"))
     ds = SceneDataset(man); meta = man.meta; M = int(meta.M)
@@ -66,6 +67,7 @@ def main() -> int:
         for sampling in ("window", "decimated"):
             Xt = X[:, :, :T] if sampling == "window" else X[:, :, :: max(1, T0 // T)][:, :, :T]
             errs = {"Root-MUSIC": [], "ReconUNet": [], "SubspaceNet": []}
+            if mdl.rc is not None: errs["ReconUNet-C"] = []
             lag_ok = T > mdl.tau                      # the tau-lag stack needs T > tau (lag tau-1 uses T-tau+1 samples)
             for ch in chunks(list(range(Xt.shape[0])), a.batch):
                 xb = Xt[ch]
@@ -73,6 +75,8 @@ def main() -> int:
                 if lag_ok:
                     errs["ReconUNet"].append(sq_err_deg2(mdl.reconunet(xb, K), true[ch]))
                     errs["SubspaceNet"].append(sq_err_deg2(mdl.subspacenet(xb, K), true[ch]))
+                    if mdl.rc is not None:
+                        errs["ReconUNet-C"].append(sq_err_deg2(mdl.reconunet_c(xb, K), true[ch]))
             for m, e in errs.items():
                 if not e:                               # lag-stack model not applicable at this T
                     rows.append({"T": T, "sampling": sampling, "method": m, "rmse_deg": float("nan"),
@@ -86,7 +90,7 @@ def main() -> int:
                                            for r in true]))
                 rows.append({"T": T, "sampling": "both", "method": "CRLB", "rmse_deg": float(crlb),
                              "median_rmspe_deg": float("nan"), "n": int(true.shape[0])})
-            print(f"[T-sweep] T={T:3d} {sampling:9s} " + "  ".join(f"{r['method']}={r['rmse_deg']:.2f}" for r in rows[-3:]))
+            print(f"[T-sweep] T={T:3d} {sampling:9s} " + "  ".join(f"{r['method']}={r['rmse_deg']:.2f}" for r in rows[-len(errs):]))
     out = a.output_dir / "snapshot_sweep.csv"
     with out.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["T", "sampling", "method", "rmse_deg", "median_rmspe_deg", "n"]); w.writeheader(); w.writerows(rows)

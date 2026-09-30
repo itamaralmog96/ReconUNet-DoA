@@ -38,11 +38,13 @@ plt.rcParams.update({"font.size": 10, "axes.labelsize": 10, "axes.titlesize": 10
                      "xtick.labelsize": 9, "ytick.labelsize": 9, "pdf.fonttype": 42, "ps.fonttype": 42,
                      "figure.dpi": 120, "savefig.bbox": "tight"})
 C = {"Root-MUSIC": "#4a4a4a", "SubspaceNet": "#7f7f7f", "DA-MUSIC": "#b0b0b0", "ReconUNet + Root-MUSIC": "#1f4e79",
-     "raw SCM": "#7f7f7f", "ReconUNet R̂": "#1f4e79"}
+     "raw SCM": "#7f7f7f", "ReconUNet R̂": "#1f4e79", "ReconUNet-C R̂": "#d35400"}
+SUFFIX = ""          # appended to output file names (R2: "_r2", written to docs/figs_revision/r2/)
 
 
 def save(fig, name):
     OUT.mkdir(parents=True, exist_ok=True)
+    name = name + SUFFIX
     fig.savefig(OUT / f"{name}.pdf"); fig.savefig(OUT / f"{name}.png", dpi=170); plt.close(fig)
     print(f"[figs] wrote {OUT / name}.pdf/.png")
 
@@ -78,7 +80,7 @@ def angle_sweep(mdl, meta, per_angle: int, seed: int):
     return angles, res
 
 
-def spectrum_and_roots(mdl, scene_index: int):
+def spectrum_and_roots(mdl, scene_index: int, roots: bool = True):
     man = SceneManifest.load(str(REPO / "data/scenes/scenarios/moderate/test.npy")); ds = SceneDataset(man)
     idx = np.where(np.abs(man.raw["snr_db"]) < 0.5)[0]
     s = ds[int(idx[scene_index])]; K = int(s.n_sources); M = int(man.meta.M)
@@ -92,14 +94,19 @@ def spectrum_and_roots(mdl, scene_index: int):
         P = 1.0 / (torch.einsum("bmk,mg->bkg", En.conj(), A).abs() ** 2).sum(1).clamp_min(1e-12)
         return (10 * torch.log10(P / P.max())).numpy()[0]
 
+    curves = [("raw SCM", R_raw), ("ReconUNet R̂", R_hat)]
+    if getattr(mdl, "rc", None) is not None:
+        curves.append(("ReconUNet-C R̂", mdl.reconunet_c_cov(X).cpu()))
     fig, ax = plt.subplots(figsize=(6.4, 3.4))
-    for lbl, R in (("raw SCM", R_raw), ("ReconUNet R̂", R_hat)):
+    for lbl, R in curves:
         ax.plot(np.rad2deg(grid.numpy()), spec(R), lw=1.5, color=C[lbl], label=f"MUSIC on {lbl}")
     for t in true_deg: ax.axvline(t, color="#c0392b", lw=0.9, ls="--")
     ax.plot([], [], color="#c0392b", lw=0.9, ls="--", label="true DoAs")
     ax.set_xlim(-90, 90); ax.set_ylim(-45, 2); ax.set_xlabel("angle (deg)"); ax.set_ylabel("normalised pseudo-spectrum (dB)")
     ax.set_title(f"Moderate scenario scene {scene_index}: K = {K} + 1 coherent replica, 0 dB"); ax.grid(alpha=0.3); ax.legend(frameon=False, loc="lower left")
     save(fig, "music_spectrum_moderate_0dB")
+    if not roots:
+        return
 
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.6))
     tt = np.linspace(0, 2 * np.pi, 400)
@@ -127,8 +134,18 @@ def main() -> int:
     ap.add_argument("--scenes-per-angle", type=int, default=200)
     ap.add_argument("--scene-index", type=int, default=0)
     ap.add_argument("--seed", type=int, default=20260920)
+    ap.add_argument("--reconunet-c", type=Path, default=None,
+                    help="R2: add ReconUNet-C to the MUSIC-spectrum figure only, written as *_r2 into --out-dir")
+    ap.add_argument("--out-dir", type=Path, default=None)
     a = ap.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if a.reconunet_c is not None:
+        global OUT, SUFFIX
+        OUT, SUFFIX = (a.out_dir or OUT / "r2"), "_r2"
+        mdl = Models(dev, reconunet_c=a.reconunet_c, with_damusic=False)
+        spectrum_and_roots(mdl, a.scene_index, roots=False)
+        print("[figs] done (R2 spectrum only)")
+        return 0
     mdl = Models(dev)
     meta = SceneManifest.load(str(REPO / "data/scenes/scenarios/basic/test.npy")).meta
     angles, res = angle_sweep(mdl, meta, a.scenes_per_angle, a.seed)

@@ -27,9 +27,11 @@ from reconunet.evaluation.unified_harness import stochastic_crlb_deg
 from reconunet.models.third_party.subspacenet_adapter import SubspaceNetAdapter
 from reconunet.models.third_party.subvit_adapter import SubViTAdapter
 from reconunet.models.third_party.damusic_adapter import DAMUSICEnsemble
-from reconunet.cli.evaluate import _NativeEVDUNetAdapter
+import sys
 
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _revision_common import load_reconunet  # noqa: E402
 SCEN = [("basic","Basic",1),("moderate","Moderate",2),
         ("advanced1_ood","OOD",1),("advanced2_crowded","Crowded",4)]
 CLASSICAL = ["Bartlett","MVDR","MUSIC","Root-MUSIC","ESPRIT","Unitary-ESPRIT"]
@@ -57,6 +59,9 @@ def main():
     ap.add_argument("--scenarios-root", type=Path, default=REPO/"data/scenes/scenarios")
     ap.add_argument("--damusic-dir", type=Path, default=REPO/"experiments/runs/damusic_paper",
                     help="root holding k<K>/checkpoints/best.pt per source count (skipped if absent)")
+    ap.add_argument("--reconunet", type=Path, default=REPO/"experiments/runs/reconunet_paper/checkpoints/best.pt")
+    ap.add_argument("--reconunet-c", type=Path, default=None,
+                    help="optional covariance-only ReconUNet-C checkpoint; adds ReconUNet-C+{every ReconUNet back end}")
     ap.add_argument("--dump-errors", type=Path, default=None,
                     help="also save per-scene per-source squared errors (deg^2) to this .npz for bootstrap CIs")
     args = ap.parse_args()
@@ -73,9 +78,9 @@ def main():
                           map_location="cpu", weights_only=False)["cfg"]["model"]["init"])
     sv_ad = SubViTAdapter(**svi); sv = sv_ad.build_model(svi)
     sv_ad.load_checkpoint(sv, str(REPO/"experiments/runs/subvit_paper/checkpoints/best.pt")); sv.to(dev).eval()
-    rn_ad = _NativeEVDUNetAdapter("reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet")
-    rn = rn_ad.build_model({"M":8,"tau":args.tau,"activation_type":"anti_rectifier","use_dropout":True})
-    rn_ad.load_checkpoint(rn, str(REPO/"experiments/runs/reconunet_paper/checkpoints/best.pt")); rn.to(dev).eval()
+    # Model class + init from the checkpoint's saved config (full ReconUNet by default).
+    _, rn, _ = load_reconunet(args.reconunet, dev, tau=args.tau)
+    rc = load_reconunet(args.reconunet_c, dev, tau=args.tau)[1] if args.reconunet_c else None
     dm = DAMUSICEnsemble.from_run_dir(args.damusic_dir, device=dev)      # per-K models or None
 
     rows = []; dump = {}
@@ -106,6 +111,10 @@ def main():
                     for name in RECON_BACKENDS:
                         fn = CB.ESTIMATORS[name]
                         add(f"ReconUNet+{name}", sq_errs(fn(R_hat, K, M).cpu().numpy(), true))
+                    if rc is not None:
+                        R_hat_c = rc(lag)[2].detach()                       # ReconUNet-C covariance
+                        for name in RECON_BACKENDS:
+                            add(f"ReconUNet-C+{name}", sq_errs(CB.ESTIMATORS[name](R_hat_c, K, M).cpu().numpy(), true))
                     add("SubspaceNet", sq_errs(sn_ad.forward(sn, lag, meta={"tau":args.tau,"n_sources":nsrc}).angles_pred.cpu().numpy()[:, :K], true))
                     sv_in = sv_ad.prepare_input(snaps, {"M":M}).to(dev)
                     add("SubViT", sq_errs(sv_ad.forward(sv, sv_in, meta={"n_sources":nsrc}).angles_pred.cpu().numpy()[:, :K], true))
@@ -133,7 +142,8 @@ def main():
         np.savez_compressed(args.dump_errors, **dump); print(f"wrote {args.dump_errors}")
 
     # ---- 0 dB Table-II view ----------------------------------------------
-    order = (CLASSICAL + [f"ReconUNet+{b}" for b in RECON_BACKENDS] + ["SubspaceNet","SubViT"]
+    order = (CLASSICAL + [f"ReconUNet+{b}" for b in RECON_BACKENDS]
+             + ([f"ReconUNet-C+{b}" for b in RECON_BACKENDS] if rc is not None else []) + ["SubspaceNet","SubViT"]
              + (["DA-MUSIC"] if dm is not None else []) + ["CRLB"])
     def get(scen, method):
         r = [x for x in rows if x["scenario"]==scen and x["method"]==method and abs(x["snr_db"])<0.5]

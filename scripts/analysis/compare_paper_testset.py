@@ -28,6 +28,8 @@ import argparse
 import csv
 from pathlib import Path
 
+import sys
+
 import numpy as np
 import torch
 
@@ -40,6 +42,8 @@ from reconunet.models.third_party.subvit_adapter import SubViTAdapter
 from reconunet.models.third_party.damusic_adapter import DAMUSICEnsemble
 
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _revision_common import load_reconunet  # noqa: E402
 
 
 def _sq_err_deg2(pred_rad, true_rad):
@@ -70,6 +74,8 @@ def main() -> int:
                     default=REPO / "experiments/runs/subvit_paper/checkpoints/best.pt")
     ap.add_argument("--reconunet", type=Path,
                     default=REPO / "experiments/runs/reconunet_paper/checkpoints/best.pt")
+    ap.add_argument("--reconunet-c", type=Path, default=None,
+                    help="optional covariance-only ReconUNet-C checkpoint, evaluated as the extra method 'ReconUNet-C'")
     ap.add_argument("--damusic-dir", type=Path,
                     default=REPO / "experiments/runs/damusic_paper",
                     help="root holding k<K>/checkpoints/best.pt per source count")
@@ -105,17 +111,14 @@ def main() -> int:
     sv_model = sv_adapter.build_model(sv_init)
     sv_adapter.load_checkpoint(sv_model, str(args.subvit)); sv_model.to(dev).eval()
 
-    from reconunet.cli.evaluate import _NativeEVDUNetAdapter
-    rn_adapter = _NativeEVDUNetAdapter(
-        "reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet")
-    rn_model = rn_adapter.build_model(
-        {"M": M, "tau": args.tau, "activation_type": "anti_rectifier", "use_dropout": True})
-    rn_adapter.load_checkpoint(rn_model, str(args.reconunet)); rn_model.to(dev).eval()
+    # Model class + init from the checkpoint's saved config (full ReconUNet by default).
+    rn_adapter, rn_model, _ = load_reconunet(args.reconunet, dev, tau=args.tau, M=M)
+    rc = load_reconunet(args.reconunet_c, dev, tau=args.tau, M=M) if args.reconunet_c else None
 
     # DA-MUSIC: per-K fixed-head models (published protocol), dispatched by true K.
     dm = DAMUSICEnsemble.from_run_dir(args.damusic_dir, device=dev)
 
-    METHODS = ["R-MUSIC", "ESPRIT", "SubspaceNet", "SubViT"] + (["DA-MUSIC"] if dm else []) + ["ReconUNet"]
+    METHODS = ["R-MUSIC", "ESPRIT", "SubspaceNet", "SubViT"] + (["DA-MUSIC"] if dm else []) + ["ReconUNet"] + (["ReconUNet-C"] if rc else [])
     pooled = {m: [] for m in METHODS}     # per-sample errors across all K
     rows = []; dump = {}
 
@@ -145,6 +148,9 @@ def main() -> int:
                                         meta={"n_sources": ns}).angles_pred.cpu().numpy()[:, :K]
                 preds = [("R-MUSIC", rm), ("ESPRIT", es), ("SubspaceNet", sn),
                          ("SubViT", sv), ("ReconUNet", rn)]
+                if rc is not None:
+                    preds.append(("ReconUNet-C", rc[0].forward(rc[1], lag, meta={"tau": args.tau, "n_sources": ns})
+                                  .angles_pred.cpu().numpy()[:, :K]))
                 if dm is not None:
                     preds.append(("DA-MUSIC", dm.predict(snaps.to(dev), ns).cpu().numpy()[:, :K]))
             for name, pred in preds:

@@ -142,3 +142,14 @@ experiments/runs/revision_retrain_20260906/*
 !experiments/runs/revision_retrain_20260906/status.log
 !experiments/runs/autopush.log
 experiments/runs/autopush.pid
+
+# ---- 2026-09-30 revision round 2 (ReconUNet-C + bandwidth sweep): tracked results ----
+!experiments/runs/revision_r2_20260930/
+experiments/runs/revision_r2_20260930/*.log
+!experiments/runs/revision_r2_20260930/status.log
+experiments/runs/revision_r2_20260930/pipeline.pid
+experiments/runs/revision_r2_20260930/release/
+!experiments/runs/eval_r2_20260930/
+!experiments/runs/sweeps_r2_20260930/
+!experiments/runs/reconunet_c_paper/
+experiments/runs/reconunet_c_paper/tb/

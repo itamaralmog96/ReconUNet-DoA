@@ -18,6 +18,27 @@ REPO = Path(__file__).resolve().parents[2]
 CK = {"reconunet": REPO / "experiments/runs/reconunet_paper/checkpoints/best.pt",
       "subspacenet": REPO / "experiments/runs/subspacenet_paper/checkpoints/best.pt",
       "damusic_dir": REPO / "experiments/runs/damusic_paper"}
+DEFAULT_RECONUNET_CLASS = "reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet"
+
+
+def load_reconunet(path, dev, tau: int = 8, M: int = 8):
+    """Build + load a ReconUNet-family checkpoint -> (adapter, model, epoch).
+
+    The model class and constructor arguments are read from the checkpoint's
+    saved training config (``cfg.model.class_path`` / ``cfg.model.init``), so the
+    same code path serves the full ReconUNet (``EVDCovarianceReconstructionUNet``)
+    and the covariance-only ReconUNet-C (``CovarianceOnlyReconstructionUNet``);
+    both return ``(eigvals, eigvecs, R_hat)`` in eval mode.  Checkpoints without a
+    saved config fall back to the full ReconUNet with the paper's settings.
+    """
+    from reconunet.cli.evaluate import _NativeEVDUNetAdapter
+    ck = torch.load(path, map_location="cpu", weights_only=False)
+    cfg_model = (ck.get("cfg") or {}).get("model", {}) if isinstance(ck, dict) else {}
+    init = dict(cfg_model.get("init") or {"M": M, "tau": tau, "activation_type": "anti_rectifier", "use_dropout": True})
+    ad = _NativeEVDUNetAdapter(cfg_model.get("class_path", DEFAULT_RECONUNET_CLASS))
+    model = ad.build_model(init); ad.load_checkpoint(model, str(path)); model.to(dev).eval()
+    epoch = int(ck.get("epoch", -1)) if isinstance(ck, dict) else -1
+    return ad, model, epoch
 
 
 def chunks(seq, n):
@@ -42,18 +63,16 @@ def sq_err_deg2(pred_rad: np.ndarray, true_rad: np.ndarray) -> np.ndarray:
 
 
 class Models:
-    """ReconUNet (+Root-MUSIC), SubspaceNet (+Root-MUSIC head), DA-MUSIC ensemble."""
+    """ReconUNet (+Root-MUSIC), SubspaceNet (+Root-MUSIC head), DA-MUSIC ensemble, and
+    optionally ReconUNet-C (covariance-only, +Root-MUSIC) when ``reconunet_c`` is given."""
 
     def __init__(self, dev, tau: int = 8, reconunet=CK["reconunet"], subspacenet=CK["subspacenet"],
-                 damusic_dir=CK["damusic_dir"], with_damusic: bool = True):
-        from reconunet.cli.evaluate import _NativeEVDUNetAdapter
+                 damusic_dir=CK["damusic_dir"], with_damusic: bool = True, reconunet_c=None):
         self.dev, self.tau = dev, tau
-        self.rn_ad = _NativeEVDUNetAdapter("reconunet.models.deep_learning.EVDUNet.EVDCovarianceReconstructionUNet")
-        ck = torch.load(reconunet, map_location="cpu", weights_only=False)
-        init = dict(ck["cfg"]["model"]["init"]) if isinstance(ck, dict) and "cfg" in ck else \
-            {"M": 8, "tau": tau, "activation_type": "anti_rectifier", "use_dropout": True}
-        self.rn = self.rn_ad.build_model(init); self.rn_ad.load_checkpoint(self.rn, str(reconunet)); self.rn.to(dev).eval()
-        self.rn_epoch = int(ck.get("epoch", -1)) if isinstance(ck, dict) else -1
+        self.rn_ad, self.rn, self.rn_epoch = load_reconunet(reconunet, dev, tau=tau)
+        self.rc = None
+        if reconunet_c is not None:
+            self.rc_ad, self.rc, self.rc_epoch = load_reconunet(reconunet_c, dev, tau=tau)
         self.sn_ad = SubspaceNetAdapter(M=4, tau=tau, diff_method="root_music")
         self.sn = self.sn_ad.build_model({"M": 4, "tau": tau, "diff_method": "root_music"})
         self.sn_ad.load_checkpoint(self.sn, str(subspacenet)); self.sn.to(dev).eval()
@@ -68,6 +87,16 @@ class Models:
     @torch.no_grad()
     def reconunet(self, snaps: torch.Tensor, K: int) -> np.ndarray:
         return root_music_rad(self.reconunet_cov(snaps), K)
+
+    @torch.no_grad()
+    def reconunet_c_cov(self, snaps: torch.Tensor) -> torch.Tensor:
+        """ReconUNet-C reconstructed covariance R_hat [g, M, M] (on device)."""
+        _, _, R_hat = self.rc(lag_stack(snaps, tau=self.tau).to(self.dev))
+        return R_hat
+
+    @torch.no_grad()
+    def reconunet_c(self, snaps: torch.Tensor, K: int) -> np.ndarray:
+        return root_music_rad(self.reconunet_c_cov(snaps), K)
 
     @torch.no_grad()
     def subspacenet(self, snaps: torch.Tensor, K: int) -> np.ndarray:

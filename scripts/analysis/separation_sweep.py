@@ -54,10 +54,13 @@ def main() -> int:
     ap.add_argument("--batch", type=int, default=500)
     ap.add_argument("--seed", type=int, default=20260920)
     ap.add_argument("--output-dir", "-o", type=Path, default=REPO / "experiments/runs/sweeps_20260920")
+    ap.add_argument("--reconunet-c", type=Path, default=None, help="optional ReconUNet-C checkpoint (extra method)")
+    ap.add_argument("--damusic-dir", type=Path, default=None,
+                    help="DA-MUSIC run root with k<K>/ subdirs (default: experiments/runs/damusic_paper)")
     a = ap.parse_args()
     a.output_dir.mkdir(parents=True, exist_ok=True)
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    mdl = Models(dev)
+    mdl = Models(dev, reconunet_c=a.reconunet_c, **({"damusic_dir": a.damusic_dir} if a.damusic_dir else {}))
     meta = SceneManifest.load(str(REPO / "data/scenes/scenarios/moderate/test.npy")).meta
     M = int(meta.M); T = int(meta.T); K = 2
     rows = []
@@ -70,6 +73,7 @@ def main() -> int:
             X = torch.stack([s.snapshots for s in samples], 0)
             true = np.stack([s.angles_rad.numpy()[:K] for s in samples])
             preds = {"Root-MUSIC": [], "ESPRIT": [], "ReconUNet": [], "SubspaceNet": [], "DA-MUSIC": []}
+            if mdl.rc is not None: preds["ReconUNet-C"] = []
             for ch in chunks(list(range(X.shape[0])), a.batch):
                 xb = X[ch]
                 preds["Root-MUSIC"].append(Models.root_music(xb, K))
@@ -79,6 +83,7 @@ def main() -> int:
                 preds["SubspaceNet"].append(mdl.subspacenet(xb, K))
                 d = mdl.damusic(xb, K)
                 if d is not None: preds["DA-MUSIC"].append(d)
+                if mdl.rc is not None: preds["ReconUNet-C"].append(mdl.reconunet_c(xb, K))
             for m, pl in preds.items():
                 if not pl: continue
                 p = np.concatenate(pl); e = sq_err_deg2(p, true)
@@ -91,7 +96,7 @@ def main() -> int:
             rows.append({"sep_deg": sep, "snr_db": snr, "method": "CRLB", "rmse_deg": float(crlb),
                          "median_rmspe_deg": float("nan"), "resolution_prob": float("nan"), "n": int(true.shape[0])})
             print(f"[sep] {sep:4.1f} deg @ {snr:+.0f} dB  " + "  ".join(
-                f"{r['method']}={r['rmse_deg']:.2f}/{r['resolution_prob']:.2f}" for r in rows[-6:-1]))
+                f"{r['method']}={r['rmse_deg']:.2f}/{r['resolution_prob']:.2f}" for r in rows[-1 - sum(1 for v in preds.values() if v):-1]))
     out = a.output_dir / "separation_sweep.csv"
     with out.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["sep_deg", "snr_db", "method", "rmse_deg", "median_rmspe_deg", "resolution_prob", "n"])

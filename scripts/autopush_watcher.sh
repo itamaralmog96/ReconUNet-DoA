@@ -19,6 +19,7 @@ cd "$(dirname "$0")/.." || exit 1
 LOG=experiments/runs/autopush.log
 INTERVAL=${AUTOPUSH_INTERVAL:-1800}
 PY=DOA_env/bin/python
+STATUS_SCRIPT=${STATUS_SCRIPT:-scripts/results_status.py}   # R2 pipeline: scripts/results_status_r2.py
 : "${PIPELINE_PID:?set PIPELINE_PID}"
 : "${GH_TOKEN:?set GH_TOKEN}"
 export GH_TOKEN
@@ -29,7 +30,10 @@ echo $$ > experiments/runs/autopush.pid
 ADD_PATHS=(RESULTS_STATUS.md docs/revision_facts.md docs/figs_revision
            experiments/runs/ablation_20260920 experiments/runs/sweeps_20260920
            experiments/runs/revision2_20260920 experiments/runs/eval_coherent_20260910
-           experiments/runs/autopush.log)
+           experiments/runs/autopush.log
+           # revision round 2 (2026-09-30); checkpoints (*.pt) and tb/ stay excluded by .gitignore
+           docs/revision_r2 experiments/runs/revision_r2_20260930 experiments/runs/eval_r2_20260930
+           experiments/runs/sweeps_r2_20260930 experiments/runs/reconunet_c_paper)
 
 push() {
   local n
@@ -45,7 +49,7 @@ push() {
 }
 
 cycle() {   # $1 = commit message
-  $PY scripts/results_status.py >> "$LOG" 2>&1 || log "results_status.py failed"
+  $PY "$STATUS_SCRIPT" >> "$LOG" 2>&1 || log "$STATUS_SCRIPT failed"
   local p
   for p in "${ADD_PATHS[@]}" experiments/runs/damusic_paper/*_v2* experiments/runs/*/status*.log; do
     [ -e "$p" ] && git add "$p" >> "$LOG" 2>&1
