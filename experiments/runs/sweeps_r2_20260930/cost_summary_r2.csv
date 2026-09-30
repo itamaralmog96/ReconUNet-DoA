@@ -1,0 +1,3 @@
+model,class,trainable parameters,MMACs per scene,GPU fwd b1 ms/scene,GPU fwd+Root-MUSIC b1 ms/scene,CPU fwd b1 ms,GPU fwd b1024 ms/scene,GPU fwd+Root-MUSIC b1024 ms/scene,epochs,best_epoch,train_wallclock_min
+ReconUNet,EVDCovarianceReconstructionUNet,337842,7.782464,1.1553987860679626,1.741485670208931,2.548469230532646,0.032299938538926654,0.07101631308614742,109,84,287
+ReconUNet-C,CovarianceOnlyReconstructionUNet,323070,7.128064,0.7584169507026672,1.3295989483594894,0.4870351403951645,0.013533594028558582,0.05760604653914925,207,182,531

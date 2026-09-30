@@ -1,6 +1,6 @@
-# Results status — revision round 2 (ReconUNet-C + bandwidth sweep), started 2026-09-30
+# Final status — revision round 2 (ReconUNet-C + bandwidth sweep), started 2026-09-30
 
-**Last update:** 2026-09-30 21:45 UTC · **pipeline process:** not running · **log says:** PIPELINE DONE · **stages:** 17/17 done, 0 failed
+**Last update:** 2026-09-30 21:45 UTC · **pipeline process:** running · **log says:** PIPELINE DONE · **stages:** 17/17 done, 0 failed
 
 ## ReconUNet-C training
 

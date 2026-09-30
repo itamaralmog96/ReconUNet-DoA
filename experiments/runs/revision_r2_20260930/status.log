@@ -1,2 +1,40 @@
 2026-09-30 12:45:06 PIPELINE START pid=3820944 gpu=NVIDIA RTX 2000 Ada Generation git=f674ff2
 2026-09-30 12:45:06 START train_reconunet_c  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/reconunet_c_paper.yaml)
+2026-09-30 21:36:36 END train_reconunet_c rc=0 elapsed=531min
+2026-09-30 21:36:36 TRAINING total wall-clock 531min
+2026-09-30 21:36:36 START train_summary  (DOA_env/bin/python scripts/analysis/r2_report.py train-summary --run-dir experiments/runs/reconunet_c_paper --status-log experiments/runs/revision_r2_20260930/status.log -o experiments/runs/revision_r2_20260930/reconunet_c_training.csv)
+2026-09-30 21:36:37 END train_summary rc=0 elapsed=0min
+2026-09-30 21:36:37 START eval_paper_testset_r2  (DOA_env/bin/python scripts/analysis/compare_paper_testset.py -o experiments/runs/eval_r2_20260930/paper_testset_r2 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --dump-errors experiments/runs/eval_r2_20260930/paper_testset_r2/errors.npz)
+2026-09-30 21:37:00 END eval_paper_testset_r2 rc=0 elapsed=0min
+2026-09-30 21:37:00 START eval_scenario_sweep_r2  (DOA_env/bin/python scripts/analysis/scenario_sweep.py -o experiments/runs/eval_r2_20260930/scenario_sweep_r2 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --dump-errors experiments/runs/eval_r2_20260930/scenario_sweep_r2/errors.npz)
+2026-09-30 21:37:58 END eval_scenario_sweep_r2 rc=0 elapsed=0min
+2026-09-30 21:37:58 START eval_table2_mild_r2  (DOA_env/bin/python scripts/analysis/reproduce_table2.py -o experiments/runs/eval_r2_20260930/table2_mild_r2 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --dump-errors experiments/runs/eval_r2_20260930/table2_mild_r2/errors.npz)
+2026-09-30 21:40:34 END eval_table2_mild_r2 rc=0 elapsed=2min
+2026-09-30 21:40:34 START eval_table2_harsh_r2  (DOA_env/bin/python scripts/analysis/reproduce_table2.py -o experiments/runs/eval_r2_20260930/table2_harsh_r2 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --dump-errors experiments/runs/eval_r2_20260930/table2_harsh_r2/errors.npz --scenarios-root data/scenes/scenarios_harsh)
+2026-09-30 21:43:08 END eval_table2_harsh_r2 rc=0 elapsed=2min
+2026-09-30 21:43:08 START bootstrap_ci_r2  (bash -c 
+    rc=0; for d in paper_testset_r2 scenario_sweep_r2 table2_mild_r2 table2_harsh_r2; do
+      if [ -f experiments/runs/eval_r2_20260930/$d/errors.npz ]; then DOA_env/bin/python scripts/analysis/bootstrap_ci.py experiments/runs/eval_r2_20260930/$d/errors.npz -o experiments/runs/eval_r2_20260930/$d/${d}_ci.csv --table $d || rc=1; else echo "missing $d"; rc=1; fi
+    done; exit $rc)
+2026-09-30 21:43:31 END bootstrap_ci_r2 rc=0 elapsed=0min
+2026-09-30 21:43:31 START snapshot_sweep_r2  (DOA_env/bin/python scripts/analysis/snapshot_sweep.py -o experiments/runs/sweeps_r2_20260930 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt)
+2026-09-30 21:43:43 END snapshot_sweep_r2 rc=0 elapsed=0min
+2026-09-30 21:43:43 START separation_sweep_r2  (DOA_env/bin/python scripts/analysis/separation_sweep.py -o experiments/runs/sweeps_r2_20260930 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --damusic-dir experiments/runs/damusic_paper/ensemble_v2)
+2026-09-30 21:43:59 END separation_sweep_r2 rc=0 elapsed=0min
+2026-09-30 21:43:59 START cost_r2  (DOA_env/bin/python scripts/analysis/cost_r2.py -o experiments/runs/sweeps_r2_20260930 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --status-log experiments/runs/revision_r2_20260930/status.log)
+2026-09-30 21:44:03 END cost_r2 rc=0 elapsed=0min
+2026-09-30 21:44:03 START music_verification_r2  (bash -c DOA_env/bin/python scripts/analysis/music_verification.py -o experiments/runs/sweeps_r2_20260930 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt > experiments/runs/sweeps_r2_20260930/music_verification.md)
+2026-09-30 21:44:07 END music_verification_r2 rc=0 elapsed=0min
+2026-09-30 21:44:07 START figures_r2  (DOA_env/bin/python scripts/analysis/revision_figures.py --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --out-dir docs/figs_revision/r2)
+2026-09-30 21:44:09 END figures_r2 rc=0 elapsed=0min
+2026-09-30 21:44:09 START bw_sweep_decoupled  (DOA_env/bin/python scripts/analysis/bandwidth_sweep.py --mode decoupled -o experiments/runs/sweeps_r2_20260930 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt)
+2026-09-30 21:44:38 END bw_sweep_decoupled rc=0 elapsed=0min
+2026-09-30 21:44:38 START bw_sweep_coupled  (DOA_env/bin/python scripts/analysis/bandwidth_sweep.py --mode coupled -o experiments/runs/sweeps_r2_20260930 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt)
+2026-09-30 21:45:07 END bw_sweep_coupled rc=0 elapsed=0min
+2026-09-30 21:45:07 START bw_plot  (DOA_env/bin/python scripts/analysis/bandwidth_sweep.py --mode plot -o experiments/runs/sweeps_r2_20260930 --fig-dir docs/figs_revision/r2)
+2026-09-30 21:45:10 END bw_plot rc=0 elapsed=0min
+2026-09-30 21:45:10 START export_r2  (DOA_env/bin/python scripts/analysis/r2_report.py export --eval-dir experiments/runs/eval_r2_20260930 --sweeps-dir experiments/runs/sweeps_r2_20260930 --run-dir experiments/runs/revision_r2_20260930 --dest docs/revision_r2)
+2026-09-30 21:45:11 END export_r2 rc=0 elapsed=0min
+2026-09-30 21:45:11 START facts_r2  (facts_r2)
+2026-09-30 21:45:28 END facts_r2 rc=0 elapsed=0min
+2026-09-30 21:45:28 PIPELINE DONE (17 stages rc=0, 0 failed)
