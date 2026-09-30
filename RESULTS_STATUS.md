@@ -1,10 +1,10 @@
 # Results status — revision round 2 (ReconUNet-C + bandwidth sweep), started 2026-09-30
 
-**Last update:** 2026-09-30 20:15 UTC · **pipeline process:** running · **log says:** in progress · **stages:** 0/17 done, 0 failed
+**Last update:** 2026-09-30 20:45 UTC · **pipeline process:** running · **log says:** in progress · **stages:** 0/17 done, 0 failed
 
 ## ReconUNet-C training
 
-Epoch 175/300, 451 min elapsed (2.57 min/epoch); best epoch 160 (val loss 0.07002, val RMSPE 1.333°); last: val RMSPE 1.334°, LR 4.0e-06; early stop after 25 epochs without improvement (currently 15). Full ReconUNet (R1) reached 2.174° val RMSPE at epoch 84 of 109.
+Epoch 187/300, 481 min elapsed (2.57 min/epoch); best epoch 182 (val loss 0.07001, val RMSPE 1.330°); last: val RMSPE 1.334°, LR 2.8e-06; early stop after 25 epochs without improvement (currently 5). Full ReconUNet (R1) reached 2.174° val RMSPE at epoch 84 of 109.
 
 ## Stages
 
@@ -34,7 +34,7 @@ Epoch 175/300, 451 min elapsed (2.57 min/epoch); best epoch 160 (val loss 0.0700
 |---|---|---|
 | Headline numbers | ⏳ pending | [docs/revision_r2/HEADLINE.md](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_r2/HEADLINE.md) |
 | All R2 CSVs (folder) | ✅ 09-30 12:45 | [docs/revision_r2](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_r2) |
-| ReconUNet-C training history | ✅ 09-30 20:14 | [experiments/runs/reconunet_c_paper/checkpoints/history.json](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/reconunet_c_paper/checkpoints/history.json) |
+| ReconUNet-C training history | ✅ 09-30 20:45 | [experiments/runs/reconunet_c_paper/checkpoints/history.json](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/reconunet_c_paper/checkpoints/history.json) |
 | Paper test split by K | ⏳ pending | [experiments/runs/eval_r2_20260930/paper_testset_r2/paper_testset_by_K.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_r2_20260930/paper_testset_r2/paper_testset_by_K.csv) |
 | Scenario sweep | ⏳ pending | [experiments/runs/eval_r2_20260930/scenario_sweep_r2/scenario_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_r2_20260930/scenario_sweep_r2/scenario_sweep.csv) |
 | Table II mild | ⏳ pending | [experiments/runs/eval_r2_20260930/table2_mild_r2/table2_full.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_r2_20260930/table2_mild_r2/table2_full.csv) |

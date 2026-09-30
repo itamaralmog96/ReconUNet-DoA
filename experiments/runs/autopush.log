@@ -211,3 +211,11 @@ hint: "git config advice.addIgnoredFile false"
 2026-09-30T19:45:41Z committed: auto: results update 2026-09-30T19:45:41Z (e0c8855)
 2026-09-30T19:45:42Z push ok
 [status-r2] RESULTS_STATUS.md rewritten (0/17 done, 0 failed, alive=True, done=False)
+The following paths are ignored by one of your .gitignore files:
+experiments/runs/damusic_paper/ensemble_v2
+hint: Use -f if you really want to add them.
+hint: Turn this message off by running
+hint: "git config advice.addIgnoredFile false"
+2026-09-30T20:15:42Z committed: auto: results update 2026-09-30T20:15:42Z (83b7288)
+2026-09-30T20:15:44Z push ok
+[status-r2] RESULTS_STATUS.md rewritten (0/17 done, 0 failed, alive=True, done=False)
