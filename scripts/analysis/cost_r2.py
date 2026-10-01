@@ -52,6 +52,8 @@ def main() -> int:
     ap.add_argument("--reconunet", type=Path, default=REPO / "experiments/runs/reconunet_paper/checkpoints/best.pt")
     ap.add_argument("--reconunet-c", type=Path, required=True)
     ap.add_argument("--status-log", type=Path, required=True, help="R2 pipeline status.log (training wall-clock)")
+    ap.add_argument("--reconunet-cb", type=Path, default=None, help="optional R2b ReconUNet-CB checkpoint (third row)")
+    ap.add_argument("--status-log-cb", type=Path, default=None, help="R2b pipeline status.log (ReconUNet-CB wall-clock)")
     ap.add_argument("--output-dir", "-o", type=Path, required=True)
     a = ap.parse_args()
     a.output_dir.mkdir(parents=True, exist_ok=True)
@@ -61,6 +63,8 @@ def main() -> int:
     X = torch.stack([ds[int(i)].snapshots for i in idx], 0)
 
     models = {"ReconUNet": a.reconunet, "ReconUNet-C": a.reconunet_c}
+    if a.reconunet_cb is not None:
+        models["ReconUNet-CB"] = a.reconunet_cb
     lat, summ = [], []
     for name, ck in models.items():
         _, net, _ = load_reconunet(ck, dev)
@@ -92,6 +96,8 @@ def main() -> int:
         if name == "ReconUNet":
             rec.update(train_info(REPO / "experiments/runs/reconunet_paper/checkpoints",
                                   REPO / "experiments/runs/revision_retrain_20260906/status.log", "reconunet"))
+        elif name == "ReconUNet-CB":
+            rec.update(train_info(Path(ck).parent, a.status_log_cb or a.status_log, "train_reconunet_cb"))
         else:
             rec.update(train_info(Path(ck).parent, a.status_log, "train_reconunet_c"))
         summ.append(rec)

@@ -24,6 +24,10 @@ RUN = REPO / f"experiments/runs/revision_r2_{DATE}"
 E = f"experiments/runs/eval_r2_{DATE}"
 SW = f"experiments/runs/sweeps_r2_{DATE}"
 CKD = REPO / "experiments/runs/reconunet_c_paper/checkpoints"
+# Overridden by scripts/results_status_r2b.py for the R2b pipeline.
+TITLE = "# Results status — revision round 2 (ReconUNet-C + bandwidth sweep), started 2026-09-30"
+MODEL, TRAIN_STAGE, DOCS = "ReconUNet-C", "train_reconunet_c", "docs/revision_r2"
+REF = "Full ReconUNet (R1) reached 2.174° val RMSPE at epoch 84 of 109."
 STAGES = [("train_reconunet_c", "Part A: train ReconUNet-C, full scale (≤300 epochs, patience 25)"),
           ("train_summary", "Part A: training summary CSV"),
           ("eval_paper_testset_r2", "Part B1: paper test split by K (+errors)"),
@@ -60,23 +64,23 @@ def main() -> int:
     now = dt.datetime.now(dt.timezone.utc)
     n_done = sum(1 for k, _ in STAGES if st.get(k, {}).get("rc") == 0)
     n_fail = sum(1 for k, _ in STAGES if st.get(k, {}).get("rc") not in (None, 0))
-    L = ["# Results status — revision round 2 (ReconUNet-C + bandwidth sweep), started 2026-09-30", "",
+    L = [TITLE, "",
          f"**Last update:** {now.strftime('%Y-%m-%d %H:%M UTC')} · **pipeline process:** {'running' if alive else 'not running'} · "
          f"**log says:** {'PIPELINE DONE' if done else 'in progress' if alive else 'stopped before completion' if st else 'not started'} · "
          f"**stages:** {n_done}/{len(STAGES)} done, {n_fail} failed", ""]
     h = CKD / "history.json"
     if h.exists():
         H = json.load(h.open()); best = min(H, key=lambda r: r["val"])
-        s = st.get("train_reconunet_c", {})
+        s = st.get(TRAIN_STAGE, {})
         el = ""
         if "start" in s:
             t0 = dt.datetime.strptime(s["start"], TS).replace(tzinfo=dt.timezone.utc)
             t1 = dt.datetime.strptime(s["end"], TS).replace(tzinfo=dt.timezone.utc) if "end" in s else now
             mins = (t1 - t0).total_seconds() / 60; el = f", {mins:.0f} min elapsed ({mins / max(len(H), 1):.2f} min/epoch)"
-        L += ["## ReconUNet-C training", "",
+        L += [f"## {MODEL} training", "",
               f"Epoch {len(H)}/300{el}; best epoch {best['epoch']} (val loss {best['val']:.5f}, val RMSPE {best['val_rmspe_deg']:.3f}°); "
               f"last: val RMSPE {H[-1]['val_rmspe_deg']:.3f}°, LR {H[-1]['lr']:.1e}; early stop after 25 epochs without improvement "
-              f"(currently {len(H) - best['epoch']}). Full ReconUNet (R1) reached 2.174° val RMSPE at epoch 84 of 109.", ""]
+              f"(currently {len(H) - best['epoch']}). {REF}", ""]
     L += ["## Stages", "", "| stage | what | state | started (UTC) | ended | elapsed |", "|---|---|---|---|---|---|"]
     for k, what in STAGES:
         d = st.get(k, {})
@@ -89,16 +93,16 @@ def main() -> int:
         when = dt.datetime.fromtimestamp(p.stat().st_mtime, dt.timezone.utc).strftime("%m-%d %H:%M") if ok else ""
         L.append(f"| {label} | {'✅ ' + when if ok else '⏳ pending'} | [{rel}]({GH}{rel}) |")
     L.append("")
-    hl = REPO / "docs/revision_r2/HEADLINE.md"
+    hl = REPO / DOCS / "HEADLINE.md"
     if hl.exists():
-        L += [hl.read_text().replace("# R2 headline numbers", "## R2 headline numbers", 1), ""]
+        L += ["#" + hl.read_text(), ""]
     if (RUN / "status.log").exists():
         L += ["## Master status log (tail)", "", "```"] + (RUN / "status.log").read_text().splitlines()[-15:] + ["```", ""]
     txt = "\n".join(L)
     (REPO / "RESULTS_STATUS.md").write_text(txt)
     if a.final:
-        (REPO / "docs/revision_r2").mkdir(parents=True, exist_ok=True)
-        (REPO / "docs/revision_r2/FINAL_STATUS.md").write_text(txt.replace("# Results status", "# Final status", 1))
+        (REPO / DOCS).mkdir(parents=True, exist_ok=True)
+        (REPO / DOCS / "FINAL_STATUS.md").write_text(txt.replace("# Results status", "# Final status", 1))
     print(f"[status-r2] RESULTS_STATUS.md rewritten ({n_done}/{len(STAGES)} done, {n_fail} failed, alive={alive}, done={done})")
     return 0
 

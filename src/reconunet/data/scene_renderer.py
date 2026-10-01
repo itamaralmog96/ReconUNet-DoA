@@ -351,6 +351,10 @@ class RenderResult:
     # the fixed-imperfection ablation.  ``None`` for callers that build results
     # by hand.
     calibration: Optional[dict] = None
+    # Source bandwidth (fraction of fs) actually used for this scene's
+    # waveforms; ``None`` = white.  Diagnostic for the randomised-bandwidth
+    # corpus (``ManifestMeta.source_bw_rand_seed``).
+    source_bw_frac: Optional[float] = None
 
     def __post_init__(self) -> None:
         if self.mp_delay_samples is None:
@@ -406,8 +410,24 @@ class SceneRenderer:
             position_err = np.zeros((M, 2), dtype=np.float64)
         return gain_err, phase_err, position_err
 
+    def scene_bw_frac(self, scene: Scene) -> Optional[float]:
+        """Source bandwidth for ``scene``: the global ``meta.source_bw_frac``,
+        or, with ``meta.source_bw_rand_seed`` set, a deterministic per-scene
+        draw (white w.p. ``source_bw_white_prob``, else log-uniform on
+        ``source_bw_log_range``) from its own rng ``[scene.seed, rand_seed]``."""
+        rand_seed = getattr(self.meta, "source_bw_rand_seed", None)
+        if rand_seed is None:
+            return self.meta.source_bw_frac
+        r = np.random.default_rng([int(scene.seed), int(rand_seed)])
+        u_white, u_bw = r.random(2)
+        if u_white < float(self.meta.source_bw_white_prob):
+            return None
+        lo, hi = (float(v) for v in self.meta.source_bw_log_range)
+        return float(np.exp(np.log(lo) + u_bw * (np.log(hi) - np.log(lo))))
+
     def render(self, scene: Scene) -> RenderResult:
         rng = np.random.default_rng(int(scene.seed))
+        bw_scene = self.scene_bw_frac(scene)
         M, T = self.meta.M, self.meta.T
 
         # --- array calibration draws (per-scene so seed reproduces) --------
@@ -450,7 +470,7 @@ class SceneRenderer:
         # before v1.2.
         sources_direct = _bandlimit_sources(
             self._draw_sources(rng, K=K, T=T, modulation=scene.modulation),
-            self.meta.source_bw_frac,
+            bw_scene,
         )
 
         # --- multipath (legacy-faithful — see _render_with_multipath) ------
@@ -462,7 +482,7 @@ class SceneRenderer:
                     direct=sources_direct,
                     A_direct=A, angles_rad_direct=angles_rad,
                     gain_err=gain_err, phase_err=phase_err,
-                    position_err=position_err,
+                    position_err=position_err, bw_frac=bw_scene,
                 )
             )
         else:
@@ -539,6 +559,7 @@ class SceneRenderer:
             angles_rad=angles_rad.astype(np.float64),  # K direct angles only
             angles_rad_multipath=angles_rad_multipath,
             mp_delay_samples=np.asarray(mp_delay_samples, dtype=np.float64),
+            source_bw_frac=_effective_bw_frac(bw_scene),
         )
 
     # --- legacy-faithful multipath branch ----------------------------------
@@ -556,6 +577,7 @@ class SceneRenderer:
         gain_err: np.ndarray,
         phase_err: np.ndarray,
         position_err: np.ndarray,
+        bw_frac: Optional[float] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Append specular replicas of source 0 to the direct paths.
 
@@ -584,7 +606,9 @@ class SceneRenderer:
         """
         num_mp = int(scene.num_multipath)
         fs = float(self.meta.fs_Hz)
-        bw_frac = _effective_bw_frac(self.meta.source_bw_frac)
+        # ``bw_frac`` = this scene's source bandwidth (render() passes the
+        # global ``meta.source_bw_frac`` unless per-scene randomisation is on).
+        bw_frac = _effective_bw_frac(bw_frac)
         if bw_frac is None:
             # White sources: keep the legacy delay *range* (as if bw = 0.05·fs)
             # so the delay statistics do not depend on the filtering switch.

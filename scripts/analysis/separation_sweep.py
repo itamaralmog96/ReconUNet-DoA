@@ -55,12 +55,13 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=20260920)
     ap.add_argument("--output-dir", "-o", type=Path, default=REPO / "experiments/runs/sweeps_20260920")
     ap.add_argument("--reconunet-c", type=Path, default=None, help="optional ReconUNet-C checkpoint (extra method)")
+    ap.add_argument("--reconunet-cb", type=Path, default=None, help="optional ReconUNet-CB checkpoint (extra method)")
     ap.add_argument("--damusic-dir", type=Path, default=None,
                     help="DA-MUSIC run root with k<K>/ subdirs (default: experiments/runs/damusic_paper)")
     a = ap.parse_args()
     a.output_dir.mkdir(parents=True, exist_ok=True)
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    mdl = Models(dev, reconunet_c=a.reconunet_c, **({"damusic_dir": a.damusic_dir} if a.damusic_dir else {}))
+    mdl = Models(dev, reconunet_c=a.reconunet_c, reconunet_cb=a.reconunet_cb, **({"damusic_dir": a.damusic_dir} if a.damusic_dir else {}))
     meta = SceneManifest.load(str(REPO / "data/scenes/scenarios/moderate/test.npy")).meta
     M = int(meta.M); T = int(meta.T); K = 2
     rows = []
@@ -73,7 +74,7 @@ def main() -> int:
             X = torch.stack([s.snapshots for s in samples], 0)
             true = np.stack([s.angles_rad.numpy()[:K] for s in samples])
             preds = {"Root-MUSIC": [], "ESPRIT": [], "ReconUNet": [], "SubspaceNet": [], "DA-MUSIC": []}
-            if mdl.rc is not None: preds["ReconUNet-C"] = []
+            for name in mdl.extra: preds[name] = []
             for ch in chunks(list(range(X.shape[0])), a.batch):
                 xb = X[ch]
                 preds["Root-MUSIC"].append(Models.root_music(xb, K))
@@ -83,7 +84,7 @@ def main() -> int:
                 preds["SubspaceNet"].append(mdl.subspacenet(xb, K))
                 d = mdl.damusic(xb, K)
                 if d is not None: preds["DA-MUSIC"].append(d)
-                if mdl.rc is not None: preds["ReconUNet-C"].append(mdl.reconunet_c(xb, K))
+                for name in mdl.extra: preds[name].append(mdl.extra_pred(name, xb, K))
             for m, pl in preds.items():
                 if not pl: continue
                 p = np.concatenate(pl); e = sq_err_deg2(p, true)

@@ -1,0 +1,41 @@
+# Smoke test for reconunet_cb_paper.yaml: 1 epoch on a 0.2 % subset (R2b).
+model:
+  name: reconunet_cb
+  class_path: reconunet.models.deep_learning.EVDUNet.CovarianceOnlyReconstructionUNet
+  init:
+    M: 8
+    tau: 8
+    activation_type: anti_rectifier
+    use_dropout: true
+collate: reconunet
+data:
+  config: configs/data/paper_corpus_bwrand.yaml
+  batch_size: 2048
+  num_workers: 6
+  pin_memory: true
+  subset_frac: 0.002
+  subset_seed: 20261001
+  val_subset_frac: 0.01
+optim:
+  optimizer: adam
+  lr: 0.0001
+  weight_decay: 1.0e-05
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    mode: min
+    factor: 0.7
+    patience: 5
+    min_lr: 1.0e-06
+loss:
+  reconstruction_weight: 1.0
+train:
+  epochs: 1
+  val_every_epoch: 1
+  checkpoint_dir: experiments/runs/reconunet_cb_smoke_r2b/checkpoints/
+  tensorboard_dir: experiments/runs/reconunet_cb_smoke_r2b/tb/
+  early_stopping_patience: 25
+  amp: true
+eval:
+  config: configs/eval/evaluation_config.yaml
+seed: 20260420

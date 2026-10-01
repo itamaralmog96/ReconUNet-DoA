@@ -151,7 +151,12 @@ def _build_loaders(train_cfg: dict, project_root: Path) -> tuple[DataLoader, Dat
     # Optional ``data.meta_overrides`` (ablations): e.g. ``tau: 1`` for a
     # single-lag input stack, ``fixed_imperfection_seed: N`` for one array-error
     # realisation shared by all scenes.  The on-disk manifest is untouched.
-    overrides = train_cfg["data"].get("meta_overrides")
+    # A data config may carry its own ``meta_overrides`` (e.g. the R2b
+    # randomised-bandwidth corpus, configs/data/paper_corpus_bwrand.yaml, which
+    # reuses the paper manifests); train-config overrides are applied on top.
+    overrides = {**dict(data_cfg.get("meta_overrides") or {}), **dict(train_cfg["data"].get("meta_overrides") or {})}
+    if "source_bw_log_range" in overrides:
+        overrides["source_bw_log_range"] = tuple(overrides["source_bw_log_range"])
     if overrides:
         meta = dataclasses.replace(meta, **{k: v for k, v in dict(overrides).items()})
         LOG.info("meta_overrides applied: %s", dict(overrides))

@@ -43,7 +43,7 @@ from reconunet.models.third_party.damusic_adapter import DAMUSICEnsemble
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _revision_common import load_reconunet  # noqa: E402
+from _revision_common import extra_reconunets, load_reconunet, renderer_meta_overrides  # noqa: E402
 
 
 def _sq_err_deg2(pred_rad, true_rad):
@@ -76,6 +76,11 @@ def main() -> int:
                     default=REPO / "experiments/runs/reconunet_paper/checkpoints/best.pt")
     ap.add_argument("--reconunet-c", type=Path, default=None,
                     help="optional covariance-only ReconUNet-C checkpoint, evaluated as the extra method 'ReconUNet-C'")
+    ap.add_argument("--reconunet-cb", type=Path, default=None,
+                    help="optional randomised-bandwidth ReconUNet-CB checkpoint (R2b), extra method 'ReconUNet-CB'")
+    ap.add_argument("--render-meta-from", type=Path, default=None,
+                    help="re-render the manifest with the meta_overrides of this data config "
+                         "(e.g. configs/data/paper_corpus_bwrand.yaml = per-scene randomised bandwidth)")
     ap.add_argument("--damusic-dir", type=Path,
                     default=REPO / "experiments/runs/damusic_paper",
                     help="root holding k<K>/checkpoints/best.pt per source count")
@@ -92,7 +97,14 @@ def main() -> int:
     print(f"[cmp] device={dev}  manifest={args.manifest.relative_to(REPO)}  max_per_k={args.max_per_k}")
 
     manifest = SceneManifest.load(str(args.manifest))
-    ds = SceneDataset(manifest)
+    if args.render_meta_from is not None:
+        import dataclasses
+        from reconunet.data.scene_renderer import SceneRenderer
+        ov = renderer_meta_overrides(args.render_meta_from)
+        print(f"[cmp] re-rendering with meta overrides {ov}")
+        ds = SceneDataset(manifest, renderer=SceneRenderer(dataclasses.replace(manifest.meta, **ov)))
+    else:
+        ds = SceneDataset(manifest)
     n_src_all = manifest.raw["n_sources"].astype(int)
     M = int(manifest.meta.M)
 
@@ -113,12 +125,12 @@ def main() -> int:
 
     # Model class + init from the checkpoint's saved config (full ReconUNet by default).
     rn_adapter, rn_model, _ = load_reconunet(args.reconunet, dev, tau=args.tau, M=M)
-    rc = load_reconunet(args.reconunet_c, dev, tau=args.tau, M=M) if args.reconunet_c else None
+    extras = {n: load_reconunet(p, dev, tau=args.tau, M=M) for n, p in extra_reconunets(args).items()}
 
     # DA-MUSIC: per-K fixed-head models (published protocol), dispatched by true K.
     dm = DAMUSICEnsemble.from_run_dir(args.damusic_dir, device=dev)
 
-    METHODS = ["R-MUSIC", "ESPRIT", "SubspaceNet", "SubViT"] + (["DA-MUSIC"] if dm else []) + ["ReconUNet"] + (["ReconUNet-C"] if rc else [])
+    METHODS = ["R-MUSIC", "ESPRIT", "SubspaceNet", "SubViT"] + (["DA-MUSIC"] if dm else []) + ["ReconUNet"] + list(extras)
     pooled = {m: [] for m in METHODS}     # per-sample errors across all K
     rows = []; dump = {}
 
@@ -148,8 +160,8 @@ def main() -> int:
                                         meta={"n_sources": ns}).angles_pred.cpu().numpy()[:, :K]
                 preds = [("R-MUSIC", rm), ("ESPRIT", es), ("SubspaceNet", sn),
                          ("SubViT", sv), ("ReconUNet", rn)]
-                if rc is not None:
-                    preds.append(("ReconUNet-C", rc[0].forward(rc[1], lag, meta={"tau": args.tau, "n_sources": ns})
+                for name, (x_ad, x_m, _) in extras.items():
+                    preds.append((name, x_ad.forward(x_m, lag, meta={"tau": args.tau, "n_sources": ns})
                                   .angles_pred.cpu().numpy()[:, :K]))
                 if dm is not None:
                     preds.append(("DA-MUSIC", dm.predict(snaps.to(dev), ns).cpu().numpy()[:, :K]))

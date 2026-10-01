@@ -41,6 +41,26 @@ def load_reconunet(path, dev, tau: int = 8, M: int = 8):
     return ad, model, epoch
 
 
+EXTRA_RECONUNETS = (("reconunet_c", "ReconUNet-C"), ("reconunet_cb", "ReconUNet-CB"))
+
+
+def extra_reconunets(args) -> dict:
+    """Ordered {method name: checkpoint} of the optional extra ReconUNet-family
+    methods given on the command line (``--reconunet-c`` -> 'ReconUNet-C',
+    ``--reconunet-cb`` -> 'ReconUNet-CB'); empty when none is given."""
+    return {name: getattr(args, attr) for attr, name in EXTRA_RECONUNETS if getattr(args, attr, None)}
+
+
+def renderer_meta_overrides(data_cfg_path) -> dict:
+    """``meta_overrides`` of a data config (e.g. configs/data/paper_corpus_bwrand.yaml),
+    with list-valued tuple fields converted, for re-rendering a manifest."""
+    import yaml
+    ov = dict(yaml.safe_load(Path(data_cfg_path).read_text()).get("meta_overrides") or {})
+    if "source_bw_log_range" in ov:
+        ov["source_bw_log_range"] = tuple(ov["source_bw_log_range"])
+    return ov
+
+
 def chunks(seq, n):
     for i in range(0, len(seq), n):
         yield seq[i:i + n]
@@ -67,12 +87,15 @@ class Models:
     optionally ReconUNet-C (covariance-only, +Root-MUSIC) when ``reconunet_c`` is given."""
 
     def __init__(self, dev, tau: int = 8, reconunet=CK["reconunet"], subspacenet=CK["subspacenet"],
-                 damusic_dir=CK["damusic_dir"], with_damusic: bool = True, reconunet_c=None):
+                 damusic_dir=CK["damusic_dir"], with_damusic: bool = True, reconunet_c=None, reconunet_cb=None):
         self.dev, self.tau = dev, tau
         self.rn_ad, self.rn, self.rn_epoch = load_reconunet(reconunet, dev, tau=tau)
-        self.rc = None
-        if reconunet_c is not None:
-            self.rc_ad, self.rc, self.rc_epoch = load_reconunet(reconunet_c, dev, tau=tau)
+        # Optional extra ReconUNet-family methods, in output order (name -> model).
+        self.extra = {}
+        for name, ck in (("ReconUNet-C", reconunet_c), ("ReconUNet-CB", reconunet_cb)):
+            if ck is not None:
+                self.extra[name] = load_reconunet(ck, dev, tau=tau)[1]
+        self.rc = self.extra.get("ReconUNet-C")
         self.sn_ad = SubspaceNetAdapter(M=4, tau=tau, diff_method="root_music")
         self.sn = self.sn_ad.build_model({"M": 4, "tau": tau, "diff_method": "root_music"})
         self.sn_ad.load_checkpoint(self.sn, str(subspacenet)); self.sn.to(dev).eval()
@@ -89,14 +112,20 @@ class Models:
         return root_music_rad(self.reconunet_cov(snaps), K)
 
     @torch.no_grad()
-    def reconunet_c_cov(self, snaps: torch.Tensor) -> torch.Tensor:
-        """ReconUNet-C reconstructed covariance R_hat [g, M, M] (on device)."""
-        _, _, R_hat = self.rc(lag_stack(snaps, tau=self.tau).to(self.dev))
+    def extra_cov(self, name: str, snaps: torch.Tensor) -> torch.Tensor:
+        """Reconstructed covariance R_hat [g, M, M] (on device) of extra method ``name``."""
+        _, _, R_hat = self.extra[name](lag_stack(snaps, tau=self.tau).to(self.dev))
         return R_hat
 
     @torch.no_grad()
+    def extra_pred(self, name: str, snaps: torch.Tensor, K: int) -> np.ndarray:
+        return root_music_rad(self.extra_cov(name, snaps), K)
+
+    def reconunet_c_cov(self, snaps: torch.Tensor) -> torch.Tensor:
+        return self.extra_cov("ReconUNet-C", snaps)
+
     def reconunet_c(self, snaps: torch.Tensor, K: int) -> np.ndarray:
-        return root_music_rad(self.reconunet_c_cov(snaps), K)
+        return self.extra_pred("ReconUNet-C", snaps, K)
 
     @torch.no_grad()
     def subspacenet(self, snaps: torch.Tensor, K: int) -> np.ndarray:

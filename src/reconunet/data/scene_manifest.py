@@ -201,6 +201,17 @@ class ManifestMeta:
     # at this bandwidth.  ``None`` = paper behaviour (delays follow
     # ``source_bw_frac``; white sources use the legacy 0.05).
     mp_delay_bw_frac: Optional[float] = None
+    # Randomised per-scene source bandwidth (R2b, ReconUNet-CB corpus).  When
+    # ``source_bw_rand_seed`` is set, every scene draws its own bandwidth from
+    # an rng seeded with ``[scene.seed, source_bw_rand_seed]`` (independent of
+    # the scene's main rng, so all other draws are unchanged): with probability
+    # ``source_bw_white_prob`` white sources (filter off), otherwise
+    # log-uniform on ``source_bw_log_range``.  ``source_bw_frac`` is then
+    # ignored for the waveforms.  ``None`` = paper behaviour (one global
+    # ``source_bw_frac``).
+    source_bw_rand_seed: Optional[int] = None
+    source_bw_log_range: Tuple[float, float] = (0.01, 0.4)
+    source_bw_white_prob: float = 0.15
 
     # --- sampling strategy ----------------------------------------------
     K_max: int = K_MAX
@@ -227,6 +238,9 @@ class ManifestMeta:
             "source_bw_frac": self.source_bw_frac,
             "fixed_imperfection_seed": self.fixed_imperfection_seed,
             **({"mp_delay_bw_frac": self.mp_delay_bw_frac} if self.mp_delay_bw_frac is not None else {}),
+            **({"source_bw_rand_seed": self.source_bw_rand_seed,
+                "source_bw_log_range": list(self.source_bw_log_range),
+                "source_bw_white_prob": self.source_bw_white_prob} if self.source_bw_rand_seed is not None else {}),
             "K_max": self.K_max,
             "angle_range_deg": list(self.angle_range_deg),
             "snr_range_db": list(self.snr_range_db),
@@ -241,6 +255,8 @@ class ManifestMeta:
         raw = yaml.safe_load(Path(path).read_text())
         raw["angle_range_deg"] = tuple(raw.get("angle_range_deg", (-60.0, 60.0)))
         raw["snr_range_db"] = tuple(raw.get("snr_range_db", (-10.0, 20.0)))
+        if "source_bw_log_range" in raw:
+            raw["source_bw_log_range"] = tuple(raw["source_bw_log_range"])
         return cls(**raw)
 
 

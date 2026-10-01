@@ -33,7 +33,10 @@ ADD_PATHS=(RESULTS_STATUS.md docs/revision_facts.md docs/figs_revision
            experiments/runs/autopush.log
            # revision round 2 (2026-09-30); checkpoints (*.pt) and tb/ stay excluded by .gitignore
            docs/revision_r2 experiments/runs/revision_r2_20260930 experiments/runs/eval_r2_20260930
-           experiments/runs/sweeps_r2_20260930 experiments/runs/reconunet_c_paper)
+           experiments/runs/sweeps_r2_20260930 experiments/runs/reconunet_c_paper
+           # revision R2b (2026-10-01, ReconUNet-CB)
+           docs/revision_r2b docs/figs_revision/r2b experiments/runs/revision_r2b_20261001
+           experiments/runs/eval_r2b_20261001 experiments/runs/sweeps_r2b_20261001 experiments/runs/reconunet_cb_paper)
 
 push() {
   local n

@@ -64,7 +64,7 @@ from reconunet.data.scene_renderer import SceneRenderer  # noqa: E402
 BWS = [0.01, 0.02, 0.05, 0.10, 0.20, 0.40, None]          # None = white (filter off)
 TRAIN_BW = 0.05
 LAGS = 8
-METHODS = ["Root-MUSIC", "ReconUNet", "ReconUNet-C", "SubspaceNet", "DA-MUSIC", "SubViT"]
+METHODS = ["Root-MUSIC", "ReconUNet", "ReconUNet-C", "ReconUNet-CB", "SubspaceNet", "DA-MUSIC", "SubViT"]
 COLS = ["scenario", "K", "replicas", "delay_mode", "bw_frac", "method", "n_scenes", "rmse_deg", "rmse_ci_lo",
         "rmse_ci_hi", "median_rmspe_deg", "median_ci_lo", "median_ci_hi", "resamples"]
 
@@ -119,13 +119,17 @@ def autocorr_stats(results, K: int) -> dict:
 
 def run(a, mode: str) -> int:
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    rc_path = a.reconunet_c if (a.reconunet_c and Path(a.reconunet_c).exists()) else None
-    if a.reconunet_c and rc_path is None:
-        print(f"[bw] WARNING: ReconUNet-C checkpoint {a.reconunet_c} not found — method skipped")
-    mdl = Models(dev, reconunet=a.reconunet, damusic_dir=a.damusic_dir, reconunet_c=rc_path)
-    from reconunet.models.third_party.subvit_adapter import SubViTAdapter
-    svi = dict(torch.load(a.subvit, map_location="cpu", weights_only=False)["cfg"]["model"]["init"])
-    sv_ad = SubViTAdapter(**svi); sv = sv_ad.build_model(svi); sv_ad.load_checkpoint(sv, str(a.subvit)); sv.to(dev).eval()
+    def _ck(path, name):
+        if path and not Path(path).exists():
+            print(f"[bw] WARNING: {name} checkpoint {path} not found — method skipped"); return None
+        return path or None
+    mdl = Models(dev, reconunet=a.reconunet, damusic_dir=a.damusic_dir, with_damusic="DA-MUSIC" in a.methods,
+                 reconunet_c=_ck(a.reconunet_c, "ReconUNet-C"), reconunet_cb=_ck(a.reconunet_cb, "ReconUNet-CB"))
+    sv = None
+    if "SubViT" in a.methods:
+        from reconunet.models.third_party.subvit_adapter import SubViTAdapter
+        svi = dict(torch.load(a.subvit, map_location="cpu", weights_only=False)["cfg"]["model"]["init"])
+        sv_ad = SubViTAdapter(**svi); sv = sv_ad.build_model(svi); sv_ad.load_checkpoint(sv, str(a.subvit)); sv.to(dev).eval()
 
     rng = np.random.default_rng(a.ci_seed)
     rows, ac_rows, dump = [], [], {}
@@ -141,18 +145,20 @@ def run(a, mode: str) -> int:
             ac_rows.append({"scenario": scen, "K": K, "replicas": R_, "delay_mode": mode, "bw_frac": bw_label(bw),
                             "n_scenes": len(results), **autocorr_stats(results, K)})
             errs = {m: [] for m in METHODS}
+            on = set(a.methods)
             for ch in chunks(list(range(X.shape[0])), a.batch):
                 xb = X[ch]; tb = true[ch]; g = len(ch); ns = torch.full((g,), K)
-                errs["Root-MUSIC"].append(sq_err_deg2(Models.root_music(xb, K), tb))
-                errs["ReconUNet"].append(sq_err_deg2(mdl.reconunet(xb, K), tb))
-                if mdl.rc is not None:
-                    errs["ReconUNet-C"].append(sq_err_deg2(mdl.reconunet_c(xb, K), tb))
-                errs["SubspaceNet"].append(sq_err_deg2(mdl.subspacenet(xb, K), tb))
-                d = mdl.damusic(xb, K)
+                if "Root-MUSIC" in on: errs["Root-MUSIC"].append(sq_err_deg2(Models.root_music(xb, K), tb))
+                if "ReconUNet" in on: errs["ReconUNet"].append(sq_err_deg2(mdl.reconunet(xb, K), tb))
+                for name in mdl.extra:
+                    if name in on: errs[name].append(sq_err_deg2(mdl.extra_pred(name, xb, K), tb))
+                if "SubspaceNet" in on: errs["SubspaceNet"].append(sq_err_deg2(mdl.subspacenet(xb, K), tb))
+                d = mdl.damusic(xb, K) if "DA-MUSIC" in on else None
                 if d is not None: errs["DA-MUSIC"].append(sq_err_deg2(d, tb))
-                with torch.no_grad():
-                    p = sv_ad.forward(sv, sv_ad.prepare_input(xb, {"M": M}).to(dev), meta={"n_sources": ns})
-                errs["SubViT"].append(sq_err_deg2(p.angles_pred.cpu().numpy()[:, :K], tb))
+                if sv is not None:
+                    with torch.no_grad():
+                        p = sv_ad.forward(sv, sv_ad.prepare_input(xb, {"M": M}).to(dev), meta={"n_sources": ns})
+                    errs["SubViT"].append(sq_err_deg2(p.angles_pred.cpu().numpy()[:, :K], tb))
             line = []
             for m in METHODS:
                 if not errs[m]: continue
@@ -164,7 +170,7 @@ def run(a, mode: str) -> int:
             print(f"[bw:{mode}] {scen:10s} bw={bw_label(bw):5s} |γ|={ac_rows[-1]['gamma_mean']:.3f} "
                   f"r1={ac_rows[-1]['r1']:.3f}  " + "  ".join(line), flush=True)
     a.output_dir.mkdir(parents=True, exist_ok=True)
-    suf = "" if mode == "decoupled" else "_coupled"
+    suf = ("" if mode == "decoupled" else "_coupled") + a.tag
     with (a.output_dir / f"bandwidth_sweep{suf}.csv").open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=COLS); w.writeheader(); w.writerows(rows)
     with (a.output_dir / f"bandwidth_autocorr{suf}.csv").open("w", newline="") as fh:
@@ -180,12 +186,12 @@ def plot(a) -> int:
     import matplotlib.pyplot as plt
     import pandas as pd
     plt.rcParams.update({"font.size": 10, "legend.fontsize": 8.5, "pdf.fonttype": 42, "savefig.bbox": "tight"})
-    df = pd.read_csv(a.output_dir / "bandwidth_sweep.csv", dtype={"bw_frac": str})
-    cp = a.output_dir / "bandwidth_sweep_coupled.csv"
+    df = pd.read_csv(a.output_dir / f"bandwidth_sweep{a.tag}.csv", dtype={"bw_frac": str})
+    cp = a.output_dir / f"bandwidth_sweep_coupled{a.tag}.csv"
     dc = pd.read_csv(cp, dtype={"bw_frac": str}) if cp.exists() else None
     WHITE_X = 1.0
     xval = lambda s: WHITE_X if s == "white" else float(s)
-    colors = {"Root-MUSIC": "#4a4a4a", "ReconUNet": "#1f4e79", "ReconUNet-C": "#d35400", "SubspaceNet": "#2e86c1",
+    colors = {"Root-MUSIC": "#4a4a4a", "ReconUNet": "#1f4e79", "ReconUNet-C": "#d35400", "ReconUNet-CB": "#c0392b", "SubspaceNet": "#2e86c1",
               "DA-MUSIC": "#8e44ad", "SubViT": "#27ae60"}
     titles = {"moderate": "Moderate (K = 2 + 1 replica)", "crowded": "Crowded (K = 4 + 3 replicas)",
               "moderate3": "Moderate-3+1 (K = 3 + 1 replica)"}
@@ -194,7 +200,7 @@ def plot(a) -> int:
     for ax, s in zip(axes[0], scens):
         for m in METHODS:
             sub = df[(df.scenario == s) & (df.method == m)]
-            if sub.empty: continue
+            if sub.empty or m not in a.methods: continue
             x = sub.bw_frac.map(xval).values; o = np.argsort(x)
             y = sub.rmse_deg.values[o]; lo = y - sub.rmse_ci_lo.values[o]; hi = sub.rmse_ci_hi.values[o] - y
             ax.errorbar(x[o], y, yerr=[lo, hi], marker="o", ms=3.5, lw=1.5, capsize=2, color=colors[m], label=m)
@@ -215,8 +221,8 @@ def plot(a) -> int:
     fig.tight_layout()
     a.fig_dir.mkdir(parents=True, exist_ok=True)
     for ext in ("pdf", "png"):
-        fig.savefig(a.fig_dir / f"bandwidth_sweep_r2.{ext}", dpi=170)
-    print(f"[bw] wrote {a.fig_dir}/bandwidth_sweep_r2.pdf/.png")
+        fig.savefig(a.fig_dir / f"{a.fig_name}.{ext}", dpi=170)
+    print(f"[bw] wrote {a.fig_dir}/{a.fig_name}.pdf/.png")
     return 0
 
 
@@ -234,6 +240,10 @@ def main() -> int:
     ap.add_argument("--draw-seed", type=int, default=20260930, help="seed of the Moderate-3+1 scene draw")
     ap.add_argument("--reconunet", type=Path, default=CK["reconunet"])
     ap.add_argument("--reconunet-c", type=Path, default=None)
+    ap.add_argument("--reconunet-cb", type=Path, default=None, help="R2b randomised-bandwidth ReconUNet-CB checkpoint")
+    ap.add_argument("--methods", nargs="+", default=METHODS, choices=METHODS, help="subset of methods to evaluate / plot")
+    ap.add_argument("--tag", default="", help="suffix for the output file names (e.g. _m5dB)")
+    ap.add_argument("--fig-name", default="bandwidth_sweep_r2")
     ap.add_argument("--subvit", type=Path, default=REPO / "experiments/runs/subvit_paper/checkpoints/best.pt")
     ap.add_argument("--damusic-dir", type=Path, default=REPO / "experiments/runs/damusic_paper/ensemble_v2")
     a = ap.parse_args()

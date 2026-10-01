@@ -244,3 +244,11 @@ hint: "git config advice.addIgnoredFile false"
 2026-09-30T21:45:51Z push ok
 2026-09-30T21:45:51Z pipeline pid 3820944 has exited — final cycle
 [status-r2] RESULTS_STATUS.md rewritten (17/17 done, 0 failed, alive=False, done=True)
+The following paths are ignored by one of your .gitignore files:
+experiments/runs/damusic_paper/ensemble_v2
+hint: Use -f if you really want to add them.
+hint: Turn this message off by running
+hint: "git config advice.addIgnoredFile false"
+2026-09-30T21:45:56Z committed: auto: all runs complete (e27a493)
+2026-09-30T21:45:58Z push ok
+2026-09-30T21:45:58Z watcher exit
