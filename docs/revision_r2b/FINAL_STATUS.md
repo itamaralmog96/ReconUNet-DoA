@@ -1,6 +1,6 @@
-# Results status — revision R2b (ReconUNet-CB, randomised source bandwidth), started 2026-10-01
+# Final status — revision R2b (ReconUNet-CB, randomised source bandwidth), started 2026-10-01
 
-**Last update:** 2026-10-01 18:21 UTC · **pipeline process:** not running · **log says:** PIPELINE DONE · **stages:** 18/18 done, 0 failed
+**Last update:** 2026-10-01 17:52 UTC · **pipeline process:** running · **log says:** PIPELINE DONE · **stages:** 18/18 done, 0 failed
 
 ## ReconUNet-CB training
 

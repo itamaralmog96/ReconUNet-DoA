@@ -38,3 +38,5 @@
 2026-10-01 17:51:40 START export_r2b  (DOA_env/bin/python scripts/analysis/r2b_report.py export --eval-dir experiments/runs/eval_r2b_20261001 --sweeps-dir experiments/runs/sweeps_r2b_20261001 --run-dir experiments/runs/revision_r2b_20261001 --dest docs/revision_r2b)
 2026-10-01 17:51:41 END export_r2b rc=0 elapsed=0min
 2026-10-01 17:51:41 START facts_r2b  (facts_r2b)
+2026-10-01 17:52:00 END facts_r2b rc=0 elapsed=0min
+2026-10-01 17:52:00 PIPELINE DONE (18 stages rc=0, 0 failed)
