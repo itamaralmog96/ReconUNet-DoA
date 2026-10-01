@@ -1,10 +1,10 @@
 # Results status — revision R2b (ReconUNet-CB, randomised source bandwidth), started 2026-10-01
 
-**Last update:** 2026-10-01 16:51 UTC · **pipeline process:** running · **log says:** in progress · **stages:** 0/18 done, 0 failed
+**Last update:** 2026-10-01 17:21 UTC · **pipeline process:** running · **log says:** in progress · **stages:** 0/18 done, 0 failed
 
 ## ReconUNet-CB training
 
-Epoch 185/300, 481 min elapsed (2.60 min/epoch); best epoch 179 (val loss 0.08128, val RMSPE 1.458°); last: val RMSPE 1.454°, LR 4.0e-06; early stop after 25 epochs without improvement (currently 6). ReconUNet-C (R2) reached 1.330° val RMSPE at epoch 182 of 207 — on the bw-0.05 validation split, so not directly comparable with ReconUNet-CB's randomised-bandwidth validation split.
+Epoch 196/300, 511 min elapsed (2.61 min/epoch); best epoch 179 (val loss 0.08128, val RMSPE 1.458°); last: val RMSPE 1.462°, LR 2.0e-06; early stop after 25 epochs without improvement (currently 17). ReconUNet-C (R2) reached 1.330° val RMSPE at epoch 182 of 207 — on the bw-0.05 validation split, so not directly comparable with ReconUNet-CB's randomised-bandwidth validation split.
 
 ## Stages
 
@@ -35,7 +35,7 @@ Epoch 185/300, 481 min elapsed (2.60 min/epoch); best epoch 179 (val loss 0.0812
 |---|---|---|
 | Headline numbers | ⏳ pending | [docs/revision_r2b/HEADLINE.md](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_r2b/HEADLINE.md) |
 | All R2b CSVs (folder) | ✅ 10-01 08:51 | [docs/revision_r2b](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_r2b) |
-| ReconUNet-CB training history | ✅ 10-01 16:51 | [experiments/runs/reconunet_cb_paper/checkpoints/history.json](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/reconunet_cb_paper/checkpoints/history.json) |
+| ReconUNet-CB training history | ✅ 10-01 17:20 | [experiments/runs/reconunet_cb_paper/checkpoints/history.json](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/reconunet_cb_paper/checkpoints/history.json) |
 | Bandwidth sweep (decoupled) | ⏳ pending | [experiments/runs/sweeps_r2b_20261001/bandwidth_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/bandwidth_sweep.csv) |
 | Bandwidth sweep (coupled) | ⏳ pending | [experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_coupled.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_coupled.csv) |
 | Bandwidth sweep −5 dB | ⏳ pending | [experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_m5dB.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_m5dB.csv) |
