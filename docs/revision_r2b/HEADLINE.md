@@ -1,58 +1,4 @@
-# Results status — revision R2b (ReconUNet-CB, randomised source bandwidth), started 2026-10-01
-
-**Last update:** 2026-10-01 17:51 UTC · **pipeline process:** running · **log says:** in progress · **stages:** 17/18 done, 0 failed
-
-## ReconUNet-CB training
-
-Epoch 204/300, 530 min elapsed (2.60 min/epoch); best epoch 179 (val loss 0.08128, val RMSPE 1.458°); last: val RMSPE 1.457°, LR 1.0e-06; early stop after 25 epochs without improvement (currently 25). ReconUNet-C (R2) reached 1.330° val RMSPE at epoch 182 of 207 — on the bw-0.05 validation split, so not directly comparable with ReconUNet-CB's randomised-bandwidth validation split.
-
-## Stages
-
-| stage | what | state | started (UTC) | ended | elapsed |
-|---|---|---|---|---|---|
-| `train_reconunet_cb` | Part B: train ReconUNet-CB from scratch on the randomised-bandwidth corpus (≤300 epochs, patience 25) | ✅ done | 2026-10-01 08:51:07 | 2026-10-01 17:40:57 | 529min |
-| `train_summary` | Part B: training summary CSV | ✅ done | 2026-10-01 17:40:57 | 2026-10-01 17:40:58 | 0min |
-| `bw_sweep_decoupled` | C1: bandwidth sweep 0 dB, decoupled (primary), all methods | ✅ done | 2026-10-01 17:40:58 | 2026-10-01 17:41:29 | 0min |
-| `bw_sweep_coupled` | C1: bandwidth sweep 0 dB, coupled | ✅ done | 2026-10-01 17:41:29 | 2026-10-01 17:42:00 | 0min |
-| `bw_sweep_m5dB` | C1: bandwidth sweep −5 dB, decoupled (Root-MUSIC, ReconUNet-C, ReconUNet-CB) | ✅ done | 2026-10-01 17:42:00 | 2026-10-01 17:42:13 | 0min |
-| `bw_sweep_p10dB` | C1: bandwidth sweep +10 dB, decoupled (Root-MUSIC, ReconUNet-C, ReconUNet-CB) | ✅ done | 2026-10-01 17:42:13 | 2026-10-01 17:42:27 | 0min |
-| `bw_plot` | C1: quick-look figure | ✅ done | 2026-10-01 17:42:27 | 2026-10-01 17:42:30 | 0min |
-| `eval_paper_testset_r2b` | C2: paper test split by K (+errors) | ✅ done | 2026-10-01 17:42:30 | 2026-10-01 17:42:53 | 0min |
-| `eval_scenario_sweep_r2b` | C3: scenario sweep | ✅ done | 2026-10-01 17:42:53 | 2026-10-01 17:43:53 | 1min |
-| `eval_table2_mild_r2b` | C4: Table II mild | ✅ done | 2026-10-01 17:43:53 | 2026-10-01 17:47:03 | 3min |
-| `eval_table2_harsh_r2b` | C4: Table III harsh | ✅ done | 2026-10-01 17:47:03 | 2026-10-01 17:50:14 | 3min |
-| `eval_paper_testset_bwrand_r2b` | C6: paper test split re-rendered at per-scene random bandwidth | ✅ done | 2026-10-01 17:50:14 | 2026-10-01 17:50:36 | 0min |
-| `bootstrap_ci_r2b` | C2-C6: bootstrap 95 % CIs | ✅ done | 2026-10-01 17:50:36 | 2026-10-01 17:51:07 | 0min |
-| `snapshot_sweep_r2b` | C5: snapshot sweep | ✅ done | 2026-10-01 17:51:07 | 2026-10-01 17:51:19 | 0min |
-| `separation_sweep_r2b` | C5: separation sweep | ✅ done | 2026-10-01 17:51:19 | 2026-10-01 17:51:36 | 0min |
-| `cost_r2b` | C7: cost incl. ReconUNet-CB | ✅ done | 2026-10-01 17:51:36 | 2026-10-01 17:51:40 | 0min |
-| `export_r2b` | Copy CSVs to docs/revision_r2b + HEADLINE.md | ✅ done | 2026-10-01 17:51:40 | 2026-10-01 17:51:41 | 0min |
-| `facts_r2b` | Append R2b sections to docs/revision_facts.md | 🔄 running | 2026-10-01 17:51:41 |  |  |
-
-## Results (links)
-
-| result | status | link |
-|---|---|---|
-| Headline numbers | ✅ 10-01 17:51 | [docs/revision_r2b/HEADLINE.md](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_r2b/HEADLINE.md) |
-| All R2b CSVs (folder) | ✅ 10-01 17:51 | [docs/revision_r2b](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_r2b) |
-| ReconUNet-CB training history | ✅ 10-01 17:40 | [experiments/runs/reconunet_cb_paper/checkpoints/history.json](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/reconunet_cb_paper/checkpoints/history.json) |
-| Bandwidth sweep (decoupled) | ✅ 10-01 17:41 | [experiments/runs/sweeps_r2b_20261001/bandwidth_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/bandwidth_sweep.csv) |
-| Bandwidth sweep (coupled) | ✅ 10-01 17:41 | [experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_coupled.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_coupled.csv) |
-| Bandwidth sweep −5 dB | ✅ 10-01 17:42 | [experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_m5dB.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_m5dB.csv) |
-| Bandwidth sweep +10 dB | ✅ 10-01 17:42 | [experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_p10dB.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/bandwidth_sweep_p10dB.csv) |
-| Paper test split | ✅ 10-01 17:42 | [experiments/runs/eval_r2b_20261001/paper_testset_r2b/paper_testset_by_K.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_r2b_20261001/paper_testset_r2b/paper_testset_by_K.csv) |
-| Matched wideband test split | ✅ 10-01 17:50 | [experiments/runs/eval_r2b_20261001/paper_testset_bwrand_r2b/paper_testset_by_K.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_r2b_20261001/paper_testset_bwrand_r2b/paper_testset_by_K.csv) |
-| Scenario sweep | ✅ 10-01 17:43 | [experiments/runs/eval_r2b_20261001/scenario_sweep_r2b/scenario_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_r2b_20261001/scenario_sweep_r2b/scenario_sweep.csv) |
-| Table II mild | ✅ 10-01 17:47 | [experiments/runs/eval_r2b_20261001/table2_mild_r2b/table2_full.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_r2b_20261001/table2_mild_r2b/table2_full.csv) |
-| Table III harsh | ✅ 10-01 17:50 | [experiments/runs/eval_r2b_20261001/table2_harsh_r2b/table2_full.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/eval_r2b_20261001/table2_harsh_r2b/table2_full.csv) |
-| Snapshot sweep | ✅ 10-01 17:51 | [experiments/runs/sweeps_r2b_20261001/snapshot_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/snapshot_sweep.csv) |
-| Separation sweep | ✅ 10-01 17:51 | [experiments/runs/sweeps_r2b_20261001/separation_sweep.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/separation_sweep.csv) |
-| Cost | ✅ 10-01 17:51 | [experiments/runs/sweeps_r2b_20261001/cost_summary_r2.csv](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/sweeps_r2b_20261001/cost_summary_r2.csv) |
-| R2b figures | ✅ 10-01 17:42 | [docs/figs_revision/r2b](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/figs_revision/r2b) |
-| Revision facts | ✅ 10-01 17:51 | [docs/revision_facts.md](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/docs/revision_facts.md) |
-| Pipeline status log | ✅ 10-01 17:51 | [experiments/runs/revision_r2b_20261001/status.log](https://github.com/itamaralmog96/ReconUNet-DoA/blob/main/experiments/runs/revision_r2b_20261001/status.log) |
-
-## R2b headline numbers (2026-10-01) — ReconUNet-CB (randomised source bandwidth)
+# R2b headline numbers (2026-10-01) — ReconUNet-CB (randomised source bandwidth)
 
 ## Plain statement
 
@@ -220,24 +166,3 @@ Pooled RMSE (°) by K:
 | ReconUNet-C | CovarianceOnlyReconstructionUNet | 323070 | 7.128 | 0.7837 | 1.357 | 0.4839 | 0.0136 | 0.05635 | 207 | 182 | 531 |
 | ReconUNet-CB | CovarianceOnlyReconstructionUNet | 323070 | 7.128 | 0.7831 | 1.353 | 0.4667 | 0.01339 | 0.05637 | 204 | 179 | 529 |
 
-
-
-## Master status log (tail)
-
-```
-2026-10-01 17:50:36 END eval_paper_testset_bwrand_r2b rc=0 elapsed=0min
-2026-10-01 17:50:36 START bootstrap_ci_r2b  (bash -c 
-  rc=0; for d in paper_testset_r2b scenario_sweep_r2b table2_mild_r2b table2_harsh_r2b paper_testset_bwrand_r2b; do
-    if [ -f experiments/runs/eval_r2b_20261001/$d/errors.npz ]; then DOA_env/bin/python scripts/analysis/bootstrap_ci.py experiments/runs/eval_r2b_20261001/$d/errors.npz -o experiments/runs/eval_r2b_20261001/$d/${d}_ci.csv --table $d || rc=1; else echo "missing $d"; rc=1; fi
-  done; exit $rc)
-2026-10-01 17:51:07 END bootstrap_ci_r2b rc=0 elapsed=0min
-2026-10-01 17:51:07 START snapshot_sweep_r2b  (DOA_env/bin/python scripts/analysis/snapshot_sweep.py -o experiments/runs/sweeps_r2b_20261001 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt)
-2026-10-01 17:51:19 END snapshot_sweep_r2b rc=0 elapsed=0min
-2026-10-01 17:51:19 START separation_sweep_r2b  (DOA_env/bin/python scripts/analysis/separation_sweep.py -o experiments/runs/sweeps_r2b_20261001 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --damusic-dir experiments/runs/damusic_paper/ensemble_v2)
-2026-10-01 17:51:36 END separation_sweep_r2b rc=0 elapsed=0min
-2026-10-01 17:51:36 START cost_r2b  (DOA_env/bin/python scripts/analysis/cost_r2.py -o experiments/runs/sweeps_r2b_20261001 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --status-log experiments/runs/revision_r2_20260930/status.log --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --status-log-cb experiments/runs/revision_r2b_20261001/status.log)
-2026-10-01 17:51:40 END cost_r2b rc=0 elapsed=0min
-2026-10-01 17:51:40 START export_r2b  (DOA_env/bin/python scripts/analysis/r2b_report.py export --eval-dir experiments/runs/eval_r2b_20261001 --sweeps-dir experiments/runs/sweeps_r2b_20261001 --run-dir experiments/runs/revision_r2b_20261001 --dest docs/revision_r2b)
-2026-10-01 17:51:41 END export_r2b rc=0 elapsed=0min
-2026-10-01 17:51:41 START facts_r2b  (facts_r2b)
-```

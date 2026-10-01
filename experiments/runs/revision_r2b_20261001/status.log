@@ -1,2 +1,40 @@
 2026-10-01 08:51:07 PIPELINE START pid=3978057 gpu=NVIDIA RTX 2000 Ada Generation git=607feb8
 2026-10-01 08:51:07 START train_reconunet_cb  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/reconunet_cb_paper.yaml)
+2026-10-01 17:40:57 END train_reconunet_cb rc=0 elapsed=529min
+2026-10-01 17:40:57 TRAINING total wall-clock 529min
+2026-10-01 17:40:57 START train_summary  (DOA_env/bin/python scripts/analysis/r2b_report.py train-summary --status-log experiments/runs/revision_r2b_20261001/status.log -o experiments/runs/revision_r2b_20261001/reconunet_cb_training.csv)
+2026-10-01 17:40:58 END train_summary rc=0 elapsed=0min
+2026-10-01 17:40:58 START bw_sweep_decoupled  (DOA_env/bin/python scripts/analysis/bandwidth_sweep.py --mode decoupled -o experiments/runs/sweeps_r2b_20261001 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt)
+2026-10-01 17:41:29 END bw_sweep_decoupled rc=0 elapsed=0min
+2026-10-01 17:41:29 START bw_sweep_coupled  (DOA_env/bin/python scripts/analysis/bandwidth_sweep.py --mode coupled -o experiments/runs/sweeps_r2b_20261001 --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt)
+2026-10-01 17:42:00 END bw_sweep_coupled rc=0 elapsed=0min
+2026-10-01 17:42:00 START bw_sweep_m5dB  (DOA_env/bin/python scripts/analysis/bandwidth_sweep.py --mode decoupled --snr -5 --tag _m5dB -o experiments/runs/sweeps_r2b_20261001 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --methods Root-MUSIC ReconUNet-C ReconUNet-CB)
+2026-10-01 17:42:13 END bw_sweep_m5dB rc=0 elapsed=0min
+2026-10-01 17:42:13 START bw_sweep_p10dB  (DOA_env/bin/python scripts/analysis/bandwidth_sweep.py --mode decoupled --snr 10 --tag _p10dB -o experiments/runs/sweeps_r2b_20261001 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --methods Root-MUSIC ReconUNet-C ReconUNet-CB)
+2026-10-01 17:42:27 END bw_sweep_p10dB rc=0 elapsed=0min
+2026-10-01 17:42:27 START bw_plot  (DOA_env/bin/python scripts/analysis/bandwidth_sweep.py --mode plot -o experiments/runs/sweeps_r2b_20261001 --fig-dir docs/figs_revision/r2b --fig-name bandwidth_sweep_r2b)
+2026-10-01 17:42:30 END bw_plot rc=0 elapsed=0min
+2026-10-01 17:42:30 START eval_paper_testset_r2b  (DOA_env/bin/python scripts/analysis/compare_paper_testset.py -o experiments/runs/eval_r2b_20261001/paper_testset_r2b --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --dump-errors experiments/runs/eval_r2b_20261001/paper_testset_r2b/errors.npz)
+2026-10-01 17:42:53 END eval_paper_testset_r2b rc=0 elapsed=0min
+2026-10-01 17:42:53 START eval_scenario_sweep_r2b  (DOA_env/bin/python scripts/analysis/scenario_sweep.py -o experiments/runs/eval_r2b_20261001/scenario_sweep_r2b --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --dump-errors experiments/runs/eval_r2b_20261001/scenario_sweep_r2b/errors.npz)
+2026-10-01 17:43:53 END eval_scenario_sweep_r2b rc=0 elapsed=1min
+2026-10-01 17:43:53 START eval_table2_mild_r2b  (DOA_env/bin/python scripts/analysis/reproduce_table2.py -o experiments/runs/eval_r2b_20261001/table2_mild_r2b --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --dump-errors experiments/runs/eval_r2b_20261001/table2_mild_r2b/errors.npz)
+2026-10-01 17:47:03 END eval_table2_mild_r2b rc=0 elapsed=3min
+2026-10-01 17:47:03 START eval_table2_harsh_r2b  (DOA_env/bin/python scripts/analysis/reproduce_table2.py -o experiments/runs/eval_r2b_20261001/table2_harsh_r2b --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --dump-errors experiments/runs/eval_r2b_20261001/table2_harsh_r2b/errors.npz --scenarios-root data/scenes/scenarios_harsh)
+2026-10-01 17:50:14 END eval_table2_harsh_r2b rc=0 elapsed=3min
+2026-10-01 17:50:14 START eval_paper_testset_bwrand_r2b  (DOA_env/bin/python scripts/analysis/compare_paper_testset.py -o experiments/runs/eval_r2b_20261001/paper_testset_bwrand_r2b --damusic-dir experiments/runs/damusic_paper/ensemble_v2 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --render-meta-from configs/data/paper_corpus_bwrand.yaml --dump-errors experiments/runs/eval_r2b_20261001/paper_testset_bwrand_r2b/errors.npz)
+2026-10-01 17:50:36 END eval_paper_testset_bwrand_r2b rc=0 elapsed=0min
+2026-10-01 17:50:36 START bootstrap_ci_r2b  (bash -c 
+  rc=0; for d in paper_testset_r2b scenario_sweep_r2b table2_mild_r2b table2_harsh_r2b paper_testset_bwrand_r2b; do
+    if [ -f experiments/runs/eval_r2b_20261001/$d/errors.npz ]; then DOA_env/bin/python scripts/analysis/bootstrap_ci.py experiments/runs/eval_r2b_20261001/$d/errors.npz -o experiments/runs/eval_r2b_20261001/$d/${d}_ci.csv --table $d || rc=1; else echo "missing $d"; rc=1; fi
+  done; exit $rc)
+2026-10-01 17:51:07 END bootstrap_ci_r2b rc=0 elapsed=0min
+2026-10-01 17:51:07 START snapshot_sweep_r2b  (DOA_env/bin/python scripts/analysis/snapshot_sweep.py -o experiments/runs/sweeps_r2b_20261001 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt)
+2026-10-01 17:51:19 END snapshot_sweep_r2b rc=0 elapsed=0min
+2026-10-01 17:51:19 START separation_sweep_r2b  (DOA_env/bin/python scripts/analysis/separation_sweep.py -o experiments/runs/sweeps_r2b_20261001 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --damusic-dir experiments/runs/damusic_paper/ensemble_v2)
+2026-10-01 17:51:36 END separation_sweep_r2b rc=0 elapsed=0min
+2026-10-01 17:51:36 START cost_r2b  (DOA_env/bin/python scripts/analysis/cost_r2.py -o experiments/runs/sweeps_r2b_20261001 --reconunet-c experiments/runs/reconunet_c_paper/checkpoints/best.pt --status-log experiments/runs/revision_r2_20260930/status.log --reconunet-cb experiments/runs/reconunet_cb_paper/checkpoints/best.pt --status-log-cb experiments/runs/revision_r2b_20261001/status.log)
+2026-10-01 17:51:40 END cost_r2b rc=0 elapsed=0min
+2026-10-01 17:51:40 START export_r2b  (DOA_env/bin/python scripts/analysis/r2b_report.py export --eval-dir experiments/runs/eval_r2b_20261001 --sweeps-dir experiments/runs/sweeps_r2b_20261001 --run-dir experiments/runs/revision_r2b_20261001 --dest docs/revision_r2b)
+2026-10-01 17:51:41 END export_r2b rc=0 elapsed=0min
+2026-10-01 17:51:41 START facts_r2b  (facts_r2b)
