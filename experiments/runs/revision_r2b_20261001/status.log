@@ -1,0 +1,2 @@
+2026-10-01 08:51:07 PIPELINE START pid=3978057 gpu=NVIDIA RTX 2000 Ada Generation git=607feb8
+2026-10-01 08:51:07 START train_reconunet_cb  (DOA_env/bin/python -m reconunet.cli.train --config configs/train/reconunet_cb_paper.yaml)
